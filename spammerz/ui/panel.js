@@ -21,6 +21,8 @@ function renderSpammerZUI(formData, state, updateState) {
     document.body.appendChild(container);
   }
 
+  const version = (window.chrome?.runtime?.getManifest?.().version) || '1.0.1';
+
   function render() {
     if (!window.htm) return;
     const s = window.spammerzState;
@@ -47,6 +49,7 @@ function renderSpammerZUI(formData, state, updateState) {
           <div class="spammerz-header">
             <div class="spammerz-logo">
               <span class="spammerz-logo-text">Spammer</span><span class="spammerz-logo-accent">Z</span>
+              <span class="spammerz-version">v${version}</span>
             </div>
             <div class="spammerz-form-title">${escHtml(formData.title)}</div>
             <button class="spammerz-header-btn spammerz-disable-btn" id="spz-disable-btn">✕</button>
@@ -1047,19 +1050,47 @@ function renderModal(s) {
   const progress = s.count > 0 ? Math.round((s.submitted / s.count) * 100) : 0;
   const done = !s.running && s.submitted >= s.count && s.submitted > 0;
 
+  if (s.modalMinimized && !done) {
+    container.innerHTML = `
+      <div class="spammerz-modal-mini" id="spz-modal-mini">
+        <div class="spammerz-modal-mini-title">Submitting</div>
+        <div class="spammerz-modal-mini-progress">
+          <span id="spz-mini-current">${s.submitted}</span>/<span id="spz-mini-total">${s.count}</span>
+          <span class="spammerz-modal-mini-percent" id="spz-mini-percent">${progress}%</span>
+        </div>
+        <div class="spammerz-modal-mini-bar">
+          <div class="spammerz-modal-mini-fill" id="spz-mini-progress" style="width:${progress}%"></div>
+        </div>
+        <div class="spammerz-modal-mini-actions">
+          <button class="spammerz-modal-mini-btn" id="spz-mini-expand" type="button">Expand</button>
+          <button class="spammerz-modal-mini-btn danger" id="spz-stop" type="button">Stop</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   if (done) {
     container.innerHTML = `
       <div class="spammerz-modal">
-        <div class="spammerz-modal-content">
-          <div class="spammerz-modal-icon spammerz-modal-icon-success">✓</div>
-          <h2>All ${s.count} responses submitted!</h2>
-          <div class="spammerz-modal-stats">
-            <span class="spammerz-stat-success">✓ ${s.succeeded} succeeded</span>
-            ${s.failed > 0 ? `<span class="spammerz-stat-error">✗ ${s.failed} failed</span>` : ''}
+        <div class="spammerz-modal-card">
+          <div class="spammerz-modal-header">
+            <div class="spammerz-modal-title">Submission Complete</div>
+            <button class="spammerz-modal-icon-btn" id="spz-close" type="button">✕</button>
           </div>
-          <div class="spammerz-modal-actions">
-            <button class="spammerz-btn-outline" id="spz-reset">Reset</button>
-            <button class="spammerz-btn-primary" id="spz-close">Close</button>
+          <div class="spammerz-modal-body">
+            <div class="spammerz-modal-success">
+              <div class="spammerz-modal-success-icon">✓</div>
+              <div class="spammerz-modal-success-text">All ${s.count} responses submitted</div>
+            </div>
+            <div class="spammerz-modal-stats">
+              <span class="spammerz-stat-success">✓ ${s.succeeded} succeeded</span>
+              <span class="spammerz-stat-error">✗ ${s.failed} failed</span>
+            </div>
+          </div>
+          <div class="spammerz-modal-actions-name">
+            <button class="spammerz-btn-outline" id="spz-reset" type="button">Submit Again</button>
+            <button class="spammerz-btn-primary" id="spz-close-alt" type="button">Close</button>
           </div>
         </div>
       </div>
@@ -1067,22 +1098,34 @@ function renderModal(s) {
   } else {
     container.innerHTML = `
       <div class="spammerz-modal">
-        <div class="spammerz-modal-content">
-          <h2>Submitting Responses</h2>
-          <div class="spammerz-modal-progress-num">
-            <span class="spammerz-modal-current">${s.submitted}</span>
-            <span class="spammerz-modal-sep">/</span>
-            <span class="spammerz-modal-total">${s.count}</span>
+        <div class="spammerz-modal-card">
+          <div class="spammerz-modal-header">
+            <div class="spammerz-modal-title">Submitting Responses</div>
+            <div class="spammerz-modal-header-actions">
+              <button class="spammerz-modal-icon-btn" id="spz-minimize" type="button">_</button>
+              <button class="spammerz-modal-icon-btn" id="spz-close" type="button">✕</button>
+            </div>
           </div>
-          <div class="spammerz-modal-progress-bar">
-            <div class="spammerz-modal-progress-fill" style="width:${progress}%"></div>
+          <div class="spammerz-modal-body">
+            <div class="spammerz-modal-progress">
+              <div class="spammerz-modal-progress-num">
+                <span id="spz-modal-current">${s.submitted}</span>
+                <span class="spammerz-modal-sep">/</span>
+                <span id="spz-modal-total">${s.count}</span>
+              </div>
+              <div class="spammerz-modal-progress-bar">
+                <div class="spammerz-modal-progress-fill" id="spz-modal-progress" style="width:${progress}%"></div>
+              </div>
+              <div class="spammerz-modal-percent" id="spz-modal-percent">${progress}%</div>
+            </div>
+            <div class="spammerz-modal-stats">
+              <span class="spammerz-stat-success" id="spz-modal-success">✓ ${s.succeeded}</span>
+              <span class="spammerz-stat-error" id="spz-modal-failed">✗ ${s.failed}</span>
+            </div>
           </div>
-          <div class="spammerz-modal-percent">${progress}%</div>
-          <div class="spammerz-modal-stats">
-            <span class="spammerz-stat-success">✓ ${s.succeeded}</span>
-            <span class="spammerz-stat-error">✗ ${s.failed}</span>
+          <div class="spammerz-modal-actions-name">
+            <button class="spammerz-btn-danger" id="spz-stop" type="button">Stop</button>
           </div>
-          <button class="spammerz-btn-danger" id="spz-stop">Stop</button>
         </div>
       </div>
     `;
@@ -1222,7 +1265,7 @@ function attachAllListeners(formData, s, updateState) {
   if (stopBtn) {
     stopBtn.onclick = () => {
       window.spammerzState.running = false;
-      window.renderSpammerZUI(formData, window.spammerzState, updateState);
+      updateState({ running: false });
     };
   }
 
@@ -1233,6 +1276,18 @@ function attachAllListeners(formData, s, updateState) {
       window.spammerzState.submitted = 0;
       window.spammerzState.succeeded = 0;
       window.spammerzState.failed = 0;
+      window.spammerzState.modalMinimized = false;
+      window.renderSpammerZUI(formData, window.spammerzState, updateState);
+    };
+  }
+
+  const closeAltBtn = document.getElementById('spz-close-alt');
+  if (closeAltBtn) {
+    closeAltBtn.onclick = () => {
+      window.spammerzState.submitted = 0;
+      window.spammerzState.succeeded = 0;
+      window.spammerzState.failed = 0;
+      window.spammerzState.modalMinimized = false;
       window.renderSpammerZUI(formData, window.spammerzState, updateState);
     };
   }
@@ -1244,6 +1299,24 @@ function attachAllListeners(formData, s, updateState) {
       window.spammerzState.submitted = 0;
       window.spammerzState.succeeded = 0;
       window.spammerzState.failed = 0;
+      window.spammerzState.modalMinimized = false;
+      window.renderSpammerZUI(formData, window.spammerzState, updateState);
+    };
+  }
+
+  // Minimize/expand modal
+  const minimizeBtn = document.getElementById('spz-minimize');
+  if (minimizeBtn) {
+    minimizeBtn.onclick = () => {
+      window.spammerzState.modalMinimized = true;
+      window.renderSpammerZUI(formData, window.spammerzState, updateState);
+    };
+  }
+
+  const miniExpandBtn = document.getElementById('spz-mini-expand');
+  if (miniExpandBtn) {
+    miniExpandBtn.onclick = () => {
+      window.spammerzState.modalMinimized = false;
       window.renderSpammerZUI(formData, window.spammerzState, updateState);
     };
   }
@@ -1668,12 +1741,17 @@ function resetLiveFormInputs(formEl) {
 }
 
 function updateProgressUI(s) {
-  const currentEl = document.querySelector('.spammerz-modal-current');
-  const totalEl = document.querySelector('.spammerz-modal-total');
-  const percentEl = document.querySelector('.spammerz-modal-percent');
-  const progressFill = document.querySelector('.spammerz-modal-progress-fill');
-  const successEl = document.querySelector('.spammerz-stat-success');
-  const errorEl = document.querySelector('.spammerz-stat-error');
+  const currentEl = document.getElementById('spz-modal-current');
+  const totalEl = document.getElementById('spz-modal-total');
+  const percentEl = document.getElementById('spz-modal-percent');
+  const progressFill = document.getElementById('spz-modal-progress');
+  const successEl = document.getElementById('spz-modal-success');
+  const errorEl = document.getElementById('spz-modal-failed');
+
+  const miniCurrent = document.getElementById('spz-mini-current');
+  const miniTotal = document.getElementById('spz-mini-total');
+  const miniPercent = document.getElementById('spz-mini-percent');
+  const miniProgress = document.getElementById('spz-mini-progress');
 
   const progress = s.count > 0 ? Math.round((s.submitted / s.count) * 100) : 0;
 
@@ -1683,6 +1761,11 @@ function updateProgressUI(s) {
   if (progressFill) progressFill.style.width = `${progress}%`;
   if (successEl) successEl.textContent = `✓ ${s.succeeded}`;
   if (errorEl) errorEl.textContent = `✗ ${s.failed}`;
+
+  if (miniCurrent) miniCurrent.textContent = String(s.submitted);
+  if (miniTotal) miniTotal.textContent = String(s.count);
+  if (miniPercent) miniPercent.textContent = `${progress}%`;
+  if (miniProgress) miniProgress.style.width = `${progress}%`;
 }
 
 /**
