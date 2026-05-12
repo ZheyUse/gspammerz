@@ -20,10 +20,12 @@ SpammerZ is a Chrome browser extension that automates Google Form submissions. I
 - **Reliable parsing** — extracts form data from Google's own internal JSON (FB_PUBLIC_LOAD_DATA_)
 - **All question types** — short text, paragraph, multiple choice, checkbox, dropdown, linear scale, date, time, grid
 - **Randomization** — uniform random or weighted percentages
-- **Configurable delay** — with optional jitter (±50%)
+- **Configurable delay** — with optional jitter (±50%), default 500ms
 - **Live progress** — real-time submission counter
 - **Enable/Disable toggle** — hide the UI to use the form normally
 - **State persistence** — remembers settings across sessions
+- **Live form preview** — fills the real Google Form DOM for preview
+- **Minimized progress pill** — keep progress visible while you work
 
 ---
 
@@ -61,32 +63,33 @@ Navigate to any **public** Google Form. Private forms (requiring login) cannot b
 
 The form loads with SpammerZ's workspace:
 
-- **Left side** — Form sandbox (preview of your form)
-- **Right side** — Configuration panel
+- **Left** — Submission & General settings
+- **Middle** — Live Google Form (real DOM)
+- **Right** — Configure Weights (%)
 
 ### 3. Configure Answers
 
 For each question:
 
-- **Checkboxes / MCQ / Dropdown**: Select which options to include in random rotation
-- **Click the checkbox** next to an option to include/exclude it
-- **Toggle "Randomize"** to enable random selection from chosen options
+- **Checkboxes / MCQ / Dropdown / Scale**: Set weight percentages
+- **Sliders** control selection weight per option
 
 ### 4. Set Submission Settings
 
 - **Submissions** — How many responses to submit (default: 100)
-- **Delay (ms)** — Wait time between submissions (default: 1500ms)
+- **Delay (ms)** — Wait time between submissions (default: 500ms)
 - **Randomize delay** — Add ±50% jitter to prevent rate limiting
 
 ### 5. Click "Start Submitting"
 
 - Progress modal shows live counter
 - Click **Stop** to cancel mid-run
-- Completion dialog shows results
+- Use **_** to minimize into a floating pill
+- Completion dialog shows results and lets you submit again
 
 ### 6. Disable When Not Needed
 
-Click the **✕ button** in the top-left header to disable. The workspace hides and you can use the form normally. Click the floating **⚡ SpammerZ** button to re-enable.
+Click the **✕ button** in the top-right header to disable. The workspace hides and you can use the form normally. Click the floating **⚡ SpammerZ** button to re-enable.
 
 ---
 
@@ -158,6 +161,35 @@ spammerz/
 ### Error: "Could not parse form"
 - The form may require login (not public)
 - Try opening the form in an incognito window
+
+---
+
+## Share With Friends (No Store)
+
+### Option A: Load Unpacked (Recommended)
+1. Zip the extension folder (the one containing `manifest.json`)
+2. Your friend unzips it locally
+3. Open `chrome://extensions`
+4. Enable **Developer mode**
+5. Click **Load unpacked** and select the folder
+
+### Option B: Pack as CRX
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Pack extension**
+4. Select the extension folder (with `manifest.json`)
+5. Leave **Private key** blank the first time
+
+Chrome will generate:
+- `spammerz.crx` (share this)
+- `spammerz.pem` (private key, keep safe)
+
+Install on another machine:
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Drag the `.crx` onto the page
+
+Note: Some Chrome versions block CRX installs unless allowed by policy. If blocked, use **Option A**.
 
 ---
 
