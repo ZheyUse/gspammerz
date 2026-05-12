@@ -1,0 +1,1154 @@
+/**
+ * @fileoverview SpammerZ - Dark Theme Styling
+ * Black background with neon green accents
+ */
+
+/* === Variables === */
+:root {
+  --spammerz-bg: #000000;
+  --spammerz-surface: #0a0a0a;
+  --spammerz-card: #141414;
+  --spammerz-border: #262626;
+  --spammerz-border-light: #333333;
+  --spammerz-accent: #39ff14;
+  --spammerz-accent-dim: #1a7a0a;
+  --spammerz-accent-yellow: #adff2f;
+  --spammerz-text: #ffffff;
+  --spammerz-text-secondary: #a3a3a3;
+  --spammerz-text-muted: #525252;
+  --spammerz-success: #39ff14;
+  --spammerz-error: #ff4444;
+  --spammerz-warning: #ffaa00;
+}
+
+/* === Container === */
+#spammerz-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999998;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--spammerz-text);
+  pointer-events: none;
+}
+
+#spammerz-container * {
+  box-sizing: border-box;
+}
+
+/* === Backdrop === */
+.spammerz-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--spammerz-bg);
+  opacity: 0.97;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+/* === Disabled Toggle (floating button) === */
+#spammerz-disabled-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--spammerz-surface);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  color: var(--spammerz-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+#spammerz-disabled-toggle:hover {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-text);
+}
+
+#spammerz-disabled-toggle .spammerz-toggle-icon {
+  color: var(--spammerz-accent);
+  font-size: 16px;
+}
+
+/* === Header Buttons === */
+.spammerz-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--spammerz-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.spammerz-header-btn:hover {
+  background: var(--spammerz-border);
+  color: var(--spammerz-text);
+}
+
+.spammerz-disable-btn:hover {
+  background: rgba(255, 68, 68, 0.2);
+  color: var(--spammerz-error);
+}
+
+/* === Panel === */
+.spammerz-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* === Header === */
+.spammerz-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--spammerz-border);
+  background: var(--spammerz-surface);
+  flex-shrink: 0;
+}
+
+.spammerz-logo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.spammerz-logo-text {
+  color: var(--spammerz-text);
+}
+
+.spammerz-logo-accent {
+  color: var(--spammerz-accent);
+  text-shadow: 0 0 10px var(--spammerz-accent);
+}
+
+.spammerz-form-title {
+  flex: 1;
+  font-size: 14px;
+  color: var(--spammerz-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* === Content === */
+.spammerz-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* === Config Panel (LEFT SIDE) === */
+.spammerz-config-panel {
+  width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--spammerz-surface);
+  border-right: 1px solid var(--spammerz-border);
+  overflow: hidden;
+}
+
+.spammerz-config-header {
+  padding: 16px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--spammerz-text-muted);
+  border-bottom: 1px solid var(--spammerz-border);
+  background: var(--spammerz-card);
+  flex-shrink: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.spammerz-config-questions {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Weighted question config */
+.spammerz-config-item {
+  background: var(--spammerz-card);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.spammerz-config-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.spammerz-config-item-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--spammerz-text);
+  flex: 1;
+  margin-right: 8px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.spammerz-config-item-type {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--spammerz-border);
+  color: var(--spammerz-text-muted);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.spammerz-weights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spammerz-weight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--spammerz-surface);
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--spammerz-border);
+}
+
+.spammerz-weight-option {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  color: var(--spammerz-text-secondary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spammerz-weight-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spammerz-weight-input {
+  width: 50px;
+  padding: 4px 6px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 4px;
+  background: var(--spammerz-card);
+  color: var(--spammerz-text);
+  font-size: 12px;
+  text-align: right;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.spammerz-weight-input:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+
+.spammerz-weight-percent {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  color: var(--spammerz-accent);
+  min-width: 36px;
+  text-align: right;
+  font-weight: 600;
+}
+
+.spammerz-weights-total {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 10px;
+  color: var(--spammerz-text-muted);
+  margin-top: 6px;
+  text-align: right;
+}
+
+.spammerz-text-config {
+  margin-top: 4px;
+}
+
+.spammerz-config-text-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 4px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.spammerz-config-text-input:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+
+.spammerz-config-input:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+
+.spammerz-config-randomize {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+
+/* === Sandbox (RIGHT SIDE - Google Form Replica) === */
+.spammerz-sandbox {
+  flex: 1;
+  overflow-y: auto;
+  background: #f2f2f2;
+  padding: 24px;
+}
+
+.spammerz-gform-container {
+  max-width: 640px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
+.spammerz-gform-header {
+  background: #673ab7;
+  color: white;
+  padding: 32px 24px;
+}
+
+.spammerz-gform-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.spammerz-gform-desc {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: rgba(255,255,255,0.9);
+  margin-top: 8px;
+}
+
+.spammerz-gform-questions {
+  padding: 24px;
+}
+
+.spammerz-gform-question {
+  padding: 16px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.spammerz-gform-question:last-child {
+  border-bottom: none;
+}
+
+.spammerz-gform-question-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  color: #202124;
+  margin-bottom: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.spammerz-gform-required {
+  color: #d93025;
+}
+
+.spammerz-gform-input,
+.spammerz-gform-textarea,
+.spammerz-gform-select {
+  width: 100%;
+  max-width: 500px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: #202124;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.spammerz-gform-input:focus,
+.spammerz-gform-textarea:focus,
+.spammerz-gform-select:focus {
+  border-color: #673ab7;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(103,58,183,0.15);
+}
+
+.spammerz-gform-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.spammerz-gform-radio-option,
+.spammerz-gform-checkbox-option {
+  margin-bottom: 8px;
+}
+
+.spammerz-gform-radio-label,
+.spammerz-gform-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: #202124;
+}
+
+.spammerz-gform-radio,
+.spammerz-gform-checkbox {
+  display: none;
+}
+
+.spammerz-gform-radio-custom {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #5f6368;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.spammerz-gform-radio:checked + .spammerz-gform-radio-custom {
+  border-color: #673ab7;
+}
+
+.spammerz-gform-radio:checked + .spammerz-gform-radio-custom::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  background: #673ab7;
+  border-radius: 50%;
+}
+
+.spammerz-gform-checkbox-custom {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #5f6368;
+  border-radius: 2px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.spammerz-gform-checkbox:checked + .spammerz-gform-checkbox-custom {
+  border-color: #673ab7;
+  background: #673ab7;
+}
+
+.spammerz-gform-checkbox:checked + .spammerz-gform-checkbox-custom::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 1px;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.spammerz-gform-scale-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spammerz-gform-scale {
+  display: flex;
+}
+
+.spammerz-gform-scale-label {
+  cursor: pointer;
+}
+
+.spammerz-gform-scale-input {
+  display: none;
+}
+
+.spammerz-gform-scale-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dadce0;
+  border-radius: 50%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #5f6368;
+  transition: all 0.15s;
+  margin: 0 2px;
+}
+
+.spammerz-gform-scale-edge {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.spammerz-gform-footer {
+  padding: 16px 24px;
+  background: #fafafa;
+  border-top: 1px solid #eee;
+}
+
+.spammerz-gform-progress-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.spammerz-form-title-card {
+  background: var(--spammerz-card);
+  border-radius: 8px;
+  border-left: 4px solid var(--spammerz-accent);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.spammerz-form-title-card h2 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.spammerz-form-title-card p {
+  margin: 0;
+  color: var(--spammerz-text-secondary);
+  font-size: 13px;
+}
+
+.spammerz-page {
+  background: var(--spammerz-card);
+  border-radius: 8px;
+  border: 1px solid var(--spammerz-border);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.spammerz-page-title {
+  padding: 12px 20px;
+  background: var(--spammerz-border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--spammerz-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.spammerz-question {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--spammerz-border);
+}
+
+.spammerz-question:last-child {
+  border-bottom: none;
+}
+
+.spammerz-question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.spammerz-question-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--spammerz-text);
+}
+
+.spammerz-required {
+  color: var(--spammerz-error);
+  margin-left: 4px;
+}
+
+.spammerz-type-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--spammerz-border);
+  color: var(--spammerz-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+/* === Inputs in Sandbox === */
+.spammerz-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 4px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-muted);
+  font-size: 13px;
+}
+
+.spammerz-input-text {
+  border-bottom: 2px solid var(--spammerz-border-light);
+  border-radius: 0;
+  padding: 8px 0;
+  background: transparent;
+}
+
+.spammerz-input-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.spammerz-select {
+  padding: 8px 12px;
+  cursor: not-allowed;
+}
+
+.spammerz-input-date,
+.spammerz-input-time {
+  max-width: 200px;
+}
+
+/* === Options === */
+.spammerz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spammerz-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--spammerz-text-secondary);
+  cursor: not-allowed;
+}
+
+.spammerz-option input {
+  accent-color: var(--spammerz-accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* === Scale === */
+.spammerz-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.spammerz-scale-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--spammerz-border-light);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: not-allowed;
+}
+
+.spammerz-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--spammerz-text-muted);
+}
+
+/* === Grid === */
+.spammerz-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.spammerz-grid-table th,
+.spammerz-grid-table td {
+  padding: 8px;
+  text-align: center;
+  border: 1px solid var(--spammerz-border);
+}
+
+.spammerz-grid-table th {
+  background: var(--spammerz-surface);
+  font-weight: 500;
+}
+
+.spammerz-grid-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.spammerz-grid-table input {
+  accent-color: var(--spammerz-accent);
+}
+
+/* === Unknown === */
+.spammerz-unknown {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--spammerz-border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--spammerz-text-muted);
+  text-transform: uppercase;
+}
+
+/* === Config Panel (Left) === */
+.spammerz-config-panel {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--spammerz-surface);
+  border-right: 1px solid var(--spammerz-border);
+}
+
+/* === Sandbox (Right) === */
+.spammerz-sandbox {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background: #050505;
+  border-left: none;
+}
+
+.spammerz-config-header {
+  padding: 16px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--spammerz-text-muted);
+  border-bottom: 1px solid var(--spammerz-border);
+  background: var(--spammerz-card);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.spammerz-config-questions {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* === Config Items === */
+.spammerz-config-item {
+  background: var(--spammerz-card);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.spammerz-config-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.spammerz-config-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--spammerz-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.spammerz-config-item-type {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--spammerz-border);
+  color: var(--spammerz-text-muted);
+  text-transform: uppercase;
+}
+
+.spammerz-config-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.spammerz-config-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--spammerz-surface);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 12px;
+}
+
+.spammerz-config-option:hover {
+  border-color: var(--spammerz-accent-dim);
+}
+
+.spammerz-config-option.selected {
+  border-color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.1);
+}
+
+.spammerz-config-option.selected span {
+  color: var(--spammerz-accent);
+}
+
+.spammerz-config-option input {
+  display: none;
+}
+
+.spammerz-config-option span {
+  color: var(--spammerz-text-secondary);
+}
+
+.spammerz-config-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 4px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.spammerz-config-input:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+
+/* === Toggle === */
+.spammerz-config-randomize {
+  display: flex;
+  align-items: center;
+}
+
+.spammerz-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--spammerz-text-secondary);
+}
+
+.spammerz-toggle input {
+  display: none;
+}
+
+.spammerz-toggle-slider {
+  width: 36px;
+  height: 20px;
+  background: var(--spammerz-border);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s ease;
+}
+
+.spammerz-toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--spammerz-text-secondary);
+  border-radius: 50%;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.spammerz-toggle input:checked + .spammerz-toggle-slider {
+  background: var(--spammerz-accent-dim);
+}
+
+.spammerz-toggle input:checked + .spammerz-toggle-slider::after {
+  transform: translateX(16px);
+  background: var(--spammerz-accent);
+  box-shadow: 0 0 8px var(--spammerz-accent);
+}
+
+/* === Settings === */
+.spammerz-settings {
+  padding: 16px 20px;
+  background: var(--spammerz-card);
+  border-top: 1px solid var(--spammerz-border);
+}
+
+.spammerz-settings-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--spammerz-text-muted);
+  margin-bottom: 16px;
+}
+
+.spammerz-settings-row {
+  margin-bottom: 12px;
+}
+
+.spammerz-settings-row label {
+  display: block;
+  font-size: 12px;
+  color: var(--spammerz-text-secondary);
+  margin-bottom: 6px;
+}
+
+.spammerz-settings-row input[type="number"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  font-size: 14px;
+}
+
+.spammerz-settings-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+
+.spammerz-settings-toggle {
+  margin-bottom: 16px;
+}
+
+/* === Buttons === */
+.spammerz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.spammerz-btn-primary {
+  width: 100%;
+  background: var(--spammerz-accent);
+  color: #000;
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.3);
+}
+
+.spammerz-btn-primary:hover {
+  background: var(--spammerz-accent-yellow);
+  box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
+}
+
+.spammerz-btn-primary:disabled {
+  background: var(--spammerz-border);
+  color: var(--spammerz-text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.spammerz-btn-outline {
+  width: 100%;
+  background: transparent;
+  color: var(--spammerz-text);
+  border: 1px solid var(--spammerz-border);
+}
+
+.spammerz-btn-outline:hover {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-accent);
+}
+
+.spammerz-btn-danger {
+  width: 100%;
+  background: transparent;
+  color: var(--spammerz-error);
+  border: 1px solid var(--spammerz-error);
+}
+
+.spammerz-btn-danger:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
+/* === Modal === */
+.spammerz-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+}
+
+.spammerz-modal-content {
+  background: var(--spammerz-card);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 16px;
+  padding: 40px;
+  min-width: 360px;
+  text-align: center;
+}
+
+.spammerz-modal h2 {
+  margin: 20px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.spammerz-modal-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.spammerz-modal-icon-success {
+  color: var(--spammerz-success);
+  text-shadow: 0 0 20px var(--spammerz-accent);
+}
+
+.spammerz-modal-progress-text {
+  font-size: 48px;
+  font-weight: 700;
+  margin: 20px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.spammerz-modal-current {
+  color: var(--spammerz-accent);
+  text-shadow: 0 0 10px var(--spammerz-accent);
+}
+
+.spammerz-modal-separator {
+  color: var(--spammerz-text-muted);
+  margin: 0 4px;
+}
+
+.spammerz-modal-total {
+  color: var(--spammerz-text-secondary);
+}
+
+.spammerz-modal-progress-bar {
+  height: 6px;
+  background: var(--spammerz-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.spammerz-modal-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--spammerz-accent-dim), var(--spammerz-accent));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px var(--spammerz-accent);
+}
+
+.spammerz-modal-percentage {
+  font-size: 12px;
+  color: var(--spammerz-text-muted);
+  margin-bottom: 20px;
+}
+
+.spammerz-modal-stats {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.spammerz-stat {
+  font-size: 14px;
+}
+
+.spammerz-stat-success {
+  color: var(--spammerz-success);
+}
+
+.spammerz-stat-error {
+  color: var(--spammerz-error);
+}
+
+.spammerz-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.spammerz-modal-actions .spammerz-btn {
+  flex: 1;
+}
+
+/* === Scrollbar === */
+.spammerz-config-questions::-webkit-scrollbar,
+.spammerz-sandbox::-webkit-scrollbar {
+  width: 8px;
+}
+
+.spammerz-config-questions::-webkit-scrollbar-track,
+.spammerz-sandbox::-webkit-scrollbar-track {
+  background: var(--spammerz-surface);
+}
+
+.spammerz-config-questions::-webkit-scrollbar-thumb,
+.spammerz-sandbox::-webkit-scrollbar-thumb {
+  background: var(--spammerz-border);
+  border-radius: 4px;
+}
+
+.spammerz-config-questions::-webkit-scrollbar-thumb:hover,
+.spammerz-sandbox::-webkit-scrollbar-thumb:hover {
+  background: var(--spammerz-border-light);
+}

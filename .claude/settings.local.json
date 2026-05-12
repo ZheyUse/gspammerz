@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:chromewebstore.google.com)",
+      "WebFetch(domain:saasbrowser.com)",
+      "WebFetch(domain:gformtasker.xyz)",
+      "WebFetch(domain:chromeboard.com)",
+      "WebFetch(domain:gformtasker.en.softonic.com)",
+      "WebFetch(domain:extpose.com)",
+      "WebFetch(domain:chrome-stats.com)",
+      "WebFetch(domain:cmftechsolutions.com)",
+      "PowerShell(mkdir *)",
+      "Bash(node --check \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\content\\\\content.js\")",
+      "Bash(node --check \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\ui\\\\panel.js\")",
+      "WebFetch(domain:docs.google.com)"
+    ]
+  }
+}
