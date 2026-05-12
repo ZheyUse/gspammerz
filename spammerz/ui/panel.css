@@ -43,8 +43,7 @@
 .spammerz-backdrop {
   position: absolute;
   inset: 0;
-  background: var(--spammerz-bg);
-  opacity: 0.97;
+  background: rgba(0, 0, 0, 0.97);
   pointer-events: auto;
   overflow: hidden;
 }
@@ -152,21 +151,136 @@
   white-space: nowrap;
 }
 
-/* === Content === */
+/* === 3 Panel Layout === */
 .spammerz-content {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-/* === Config Panel (LEFT SIDE) === */
-.spammerz-config-panel {
-  width: 380px;
+/* === Left Panel: Submission Settings === */
+.spammerz-submission-panel {
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--spammerz-surface);
   border-right: 1px solid var(--spammerz-border);
+  overflow: hidden;
+}
+
+.spammerz-submission-panel .spammerz-config-header {
+  padding: 16px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--spammerz-text-muted);
+  border-bottom: 1px solid var(--spammerz-border);
+  background: var(--spammerz-card);
+  flex-shrink: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.spammerz-submission-panel .spammerz-config-questions {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.spammerz-submission-panel .spammerz-settings {
+  padding: 16px 20px;
+  background: var(--spammerz-card);
+}
+
+.spammerz-submission-panel .spammerz-settings-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--spammerz-text-muted);
+  margin-bottom: 16px;
+}
+
+.spammerz-submission-panel .spammerz-settings-row {
+  margin-bottom: 12px;
+}
+
+.spammerz-submission-panel .spammerz-settings-row label {
+  display: block;
+  font-size: 12px;
+  color: var(--spammerz-text-secondary);
+  margin-bottom: 6px;
+}
+
+.spammerz-submission-panel .spammerz-settings-row input[type="number"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  font-size: 14px;
+}
+
+.spammerz-submission-panel .spammerz-settings-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+
+.spammerz-submission-panel .spammerz-settings-toggle-row {
+  margin-bottom: 16px;
+}
+
+.spammerz-submission-panel .spammerz-settings-toggle-row .spammerz-toggle {
+  flex-direction: row;
+}
+
+.spammerz-submission-panel .spammerz-btn-primary {
+  margin-top: 8px;
+}
+
+/* === Middle Panel: Google Form Sandbox === */
+.spammerz-sandbox {
+  flex: 1;
+  overflow-y: auto;
+  background: #f3eefc;
+  padding: 24px 0 40px;
+}
+
+.spammerz-live-form-shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.spammerz-live-form-host {
+  display: block;
+}
+
+.spammerz-live-form {
+  margin: 0 auto;
+  max-width: 700px;
+}
+
+.spammerz-live-form-empty {
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 13px;
+  color: #5f6368;
+}
+
+/* === Right Panel: Configure Weights === */
+.spammerz-weights-panel {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--spammerz-surface);
+  border-left: 1px solid var(--spammerz-border);
   overflow: hidden;
 }
 
@@ -229,6 +343,41 @@
   color: var(--spammerz-text-muted);
   text-transform: uppercase;
   flex-shrink: 0;
+}
+
+.spammerz-type-name {
+  background: rgba(57, 255, 20, 0.15);
+  color: var(--spammerz-accent);
+  border: 1px solid rgba(57, 255, 20, 0.3);
+}
+
+/* Name detected badge in weights panel */
+.spammerz-name-detected-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  background: rgba(57, 255, 20, 0.1);
+  border: 1px solid rgba(57, 255, 20, 0.3);
+  border-radius: 6px;
+  cursor: default;
+}
+
+.spammerz-name-detected-badge svg {
+  width: 16px;
+  height: 16px;
+  color: var(--spammerz-accent);
+  flex-shrink: 0;
+}
+
+.spammerz-name-detected-text {
+  font-size: 12px;
+  color: var(--spammerz-accent);
+}
+
+.spammerz-name-detected-text strong {
+  font-weight: 600;
 }
 
 .spammerz-weights-list {
@@ -328,68 +477,70 @@
   margin-top: 8px;
 }
 
-/* === Sandbox (RIGHT SIDE - Google Form Replica) === */
-.spammerz-sandbox {
-  flex: 1;
-  overflow-y: auto;
-  background: #f2f2f2;
-  padding: 24px;
-}
-
-.spammerz-gform-container {
-  max-width: 640px;
+/* === Google Form Containers === */
+.spammerz-gform-shell {
+  max-width: 680px;
   margin: 0 auto;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-  overflow: hidden;
+  padding: 0 24px;
 }
 
-.spammerz-gform-header {
-  background: #673ab7;
-  color: white;
-  padding: 32px 24px;
+.spammerz-gform-card {
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(60,64,67,0.15);
+}
+
+.spammerz-gform-card-header {
+  border-top: 8px solid #673ab7;
+  padding-top: 16px;
 }
 
 .spammerz-gform-title {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 22px;
-  font-weight: 400;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 24px;
+  font-weight: 500;
   line-height: 1.3;
   margin: 0;
+  color: #202124;
 }
 
 .spammerz-gform-desc {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 13px;
-  color: rgba(255,255,255,0.9);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 14px;
+  color: #5f6368;
   margin-top: 8px;
+  line-height: 1.5;
 }
 
 .spammerz-gform-questions {
-  padding: 24px;
-}
-
-.spammerz-gform-question {
-  padding: 16px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.spammerz-gform-question:last-child {
-  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .spammerz-gform-question-title {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 16px;
   color: #202124;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   line-height: 1.5;
   font-weight: 400;
 }
 
+.spammerz-gform-question-desc {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
 .spammerz-gform-required {
   color: #d93025;
+  font-weight: 500;
 }
 
 .spammerz-gform-input,
@@ -397,22 +548,30 @@
 .spammerz-gform-select {
   width: 100%;
   max-width: 500px;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 8px 2px;
+  border: none;
+  border-bottom: 1px solid #dadce0;
+  border-radius: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   font-size: 14px;
   color: #202124;
-  background: #fff;
+  background: transparent;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.spammerz-gform-input:hover,
+.spammerz-gform-textarea:hover,
+.spammerz-gform-select:hover {
+  border-color: #bdc1c6;
 }
 
 .spammerz-gform-input:focus,
 .spammerz-gform-textarea:focus,
 .spammerz-gform-select:focus {
-  border-color: #673ab7;
+  border-bottom-color: #1a73e8;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(103,58,183,0.15);
+  box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
 }
 
 .spammerz-gform-textarea {
@@ -420,9 +579,28 @@
   min-height: 80px;
 }
 
+.spammerz-gform-select {
+  cursor: pointer;
+  appearance: none;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235f6368' d='M7 7l3-3 3 3zm-3 3L1 7l3-3z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
 .spammerz-gform-radio-option,
 .spammerz-gform-checkbox-option {
   margin-bottom: 8px;
+  padding: 4px 0;
+  transition: background-color 0.15s ease;
+}
+
+.spammerz-gform-radio-option:hover,
+.spammerz-gform-checkbox-option:hover {
+  background-color: transparent;
 }
 
 .spammerz-gform-radio-label,
@@ -431,113 +609,265 @@
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   font-size: 14px;
   color: #202124;
 }
 
 .spammerz-gform-radio,
 .spammerz-gform-checkbox {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
 .spammerz-gform-radio-custom {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 2px solid #5f6368;
   border-radius: 50%;
   position: relative;
   flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+
+.spammerz-gform-radio:hover + .spammerz-gform-radio-custom {
+  border-color: #1a73e8;
 }
 
 .spammerz-gform-radio:checked + .spammerz-gform-radio-custom {
-  border-color: #673ab7;
+  border-color: #1a73e8;
 }
 
 .spammerz-gform-radio:checked + .spammerz-gform-radio-custom::after {
   content: '';
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 4px;
+  left: 4px;
   width: 6px;
   height: 6px;
-  background: #673ab7;
+  background: #1a73e8;
   border-radius: 50%;
 }
 
 .spammerz-gform-checkbox-custom {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 2px solid #5f6368;
   border-radius: 2px;
   position: relative;
   flex-shrink: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.spammerz-gform-checkbox:hover + .spammerz-gform-checkbox-custom {
+  border-color: #1a73e8;
 }
 
 .spammerz-gform-checkbox:checked + .spammerz-gform-checkbox-custom {
-  border-color: #673ab7;
-  background: #673ab7;
+  border-color: #1a73e8;
+  background: #1a73e8;
 }
 
 .spammerz-gform-checkbox:checked + .spammerz-gform-checkbox-custom::after {
-  content: '✓';
+  content: '';
   position: absolute;
-  top: -2px;
-  left: 1px;
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
+  top: 2px;
+  left: 5px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
+/* Linear Scale - Google Forms style */
 .spammerz-gform-scale-container {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 2px;
 }
 
 .spammerz-gform-scale {
   display: flex;
+  align-items: flex-end;
+  gap: 16px;
 }
 
-.spammerz-gform-scale-label {
+.spammerz-gform-scale-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
+}
+
+.spammerz-gform-scale-number {
+  font-size: 12px;
+  color: #5f6368;
 }
 
 .spammerz-gform-scale-input {
   display: none;
 }
 
-.spammerz-gform-scale-value {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid #dadce0;
+.spammerz-gform-scale-dot {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #9aa0a6;
   border-radius: 50%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 13px;
-  color: #5f6368;
-  transition: all 0.15s;
-  margin: 0 2px;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.spammerz-gform-scale-edge {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+.spammerz-gform-scale-option:hover .spammerz-gform-scale-dot {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+}
+
+.spammerz-gform-scale-input:checked + .spammerz-gform-scale-dot {
+  border-color: #1a73e8;
+  box-shadow: inset 0 0 0 5px #1a73e8;
+}
+
+.spammerz-gform-scale-labels {
+  display: flex;
+  justify-content: space-between;
   font-size: 12px;
   color: #5f6368;
 }
 
+.spammerz-gform-scale-labels span:empty::after {
+  content: '\00a0';
+}
+
+/* Rating */
+.spammerz-gform-rating {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 0;
+}
+
+.spammerz-gform-rating-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+.spammerz-gform-rating-input {
+  display: none;
+}
+
+.spammerz-gform-rating-star {
+  font-size: 18px;
+  color: #9aa0a6;
+  transition: color 0.15s ease;
+}
+
+.spammerz-gform-rating-num {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.spammerz-gform-rating-option:hover .spammerz-gform-rating-star,
+.spammerz-gform-rating-input:checked + .spammerz-gform-rating-star {
+  color: #1a73e8;
+}
+
 .spammerz-gform-footer {
-  padding: 16px 24px;
-  background: #fafafa;
-  border-top: 1px solid #eee;
+  padding: 8px 24px 0;
+  background: transparent;
+  border-top: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spammerz-gform-refresh {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .spammerz-gform-progress-text {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 12px;
   color: #5f6368;
+  margin-top: 8px;
+}
+
+.spammerz-gform-submit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.spammerz-gform-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  background: #673ab7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: default;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.spammerz-gform-submit-btn:hover {
+  background: #5e35b1;
+}
+
+.spammerz-gform-grid-container {
+  overflow-x: auto;
+}
+
+.spammerz-gform-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 14px;
+  border: none;
+}
+
+.spammerz-gform-grid-table th,
+.spammerz-gform-grid-table td {
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.spammerz-gform-grid-table th {
+  background: #f8f9fa;
+  font-weight: 500;
+  color: #202124;
+  font-size: 13px;
+}
+
+.spammerz-gform-grid-row-label {
+  text-align: left !important;
+  font-weight: 400;
+  color: #202124;
+  background: #f8f9fa !important;
+  font-size: 13px;
+}
+
+.spammerz-gform-grid-radio,
+.spammerz-gform-grid-checkbox {
+  accent-color: #1a73e8;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .spammerz-form-title-card {
@@ -740,26 +1070,8 @@
   text-transform: uppercase;
 }
 
-/* === Config Panel (Left) === */
-.spammerz-config-panel {
-  width: 420px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--spammerz-surface);
-  border-right: 1px solid var(--spammerz-border);
-}
-
-/* === Sandbox (Right) === */
-.spammerz-sandbox {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
-  background: #050505;
-  border-left: none;
-}
-
-.spammerz-config-header {
+/* === Weights Panel (Right) === */
+.spammerz-weights-panel .spammerz-config-header {
   padding: 16px 20px;
   font-size: 12px;
   font-weight: 600;
@@ -773,14 +1085,14 @@
   z-index: 10;
 }
 
-.spammerz-config-questions {
+.spammerz-weights-panel .spammerz-config-questions {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
 }
 
-/* === Config Items === */
-.spammerz-config-item {
+/* === Config Items (for weights) === */
+.spammerz-weights-panel .spammerz-config-item {
   background: var(--spammerz-card);
   border: 1px solid var(--spammerz-border);
   border-radius: 8px;
@@ -968,6 +1280,14 @@
   margin-bottom: 16px;
 }
 
+.spammerz-settings-toggle-row {
+  margin-bottom: 16px;
+}
+
+.spammerz-settings-toggle-row .spammerz-toggle {
+  flex-direction: row;
+}
+
 /* === Buttons === */
 .spammerz-btn {
   display: inline-flex;
@@ -983,22 +1303,73 @@
 }
 
 .spammerz-btn-primary {
+  position: relative;
   width: 100%;
-  background: var(--spammerz-accent);
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #39ff14 0%, #32d912 100%);
   color: #000;
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.3);
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  box-shadow:
+    0 4px 15px rgba(57, 255, 20, 0.4),
+    0 0 0 1px rgba(57, 255, 20, 0.2) inset;
+  overflow: hidden;
+}
+
+.spammerz-btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: left 0.5s ease;
 }
 
 .spammerz-btn-primary:hover {
-  background: var(--spammerz-accent-yellow);
-  box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
+  background: linear-gradient(135deg, #4dff33 0%, #39ff14 100%);
+  box-shadow:
+    0 6px 25px rgba(57, 255, 20, 0.6),
+    0 0 0 1px rgba(57, 255, 20, 0.4) inset,
+    0 0 40px rgba(57, 255, 20, 0.3);
+  transform: translateY(-1px);
+}
+
+.spammerz-btn-primary:hover::before {
+  left: 100%;
+}
+
+.spammerz-btn-primary:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 2px 10px rgba(57, 255, 20, 0.4),
+    0 0 0 1px rgba(57, 255, 20, 0.2) inset;
 }
 
 .spammerz-btn-primary:disabled {
-  background: var(--spammerz-border);
+  background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
   color: var(--spammerz-text-muted);
   box-shadow: none;
   cursor: not-allowed;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.spammerz-btn-primary:disabled:hover {
+  transform: none;
+}
+
+.spammerz-btn-primary:disabled::before {
+  display: none;
 }
 
 .spammerz-btn-outline {
@@ -1024,15 +1395,526 @@
   background: rgba(255, 68, 68, 0.1);
 }
 
+/* === Settings Button === */
+.spammerz-settings-btn {
+  margin-top: 12px;
+}
+
+/* === General Settings Section === */
+.spammerz-general-header {
+  margin-top: 8px;
+  border-top: 1px solid var(--spammerz-border);
+}
+
+.spammerz-auto-name-section {
+  padding: 4px 0;
+}
+
+.spammerz-auto-name-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.spammerz-auto-name-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--spammerz-text);
+}
+
+.spammerz-auto-name-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--spammerz-border);
+  color: var(--spammerz-text-muted);
+}
+
+.spammerz-auto-name-status.active {
+  background: rgba(57, 255, 20, 0.15);
+  color: var(--spammerz-accent);
+}
+
+.spammerz-auto-name-info {
+  font-size: 11px;
+  color: var(--spammerz-text-muted);
+  margin-bottom: 8px;
+}
+.spammerz-auto-name-toggle {
+  margin: 10px 0 6px;
+}
+.spammerz-name-locked-content .spammerz-name-toggle {
+  margin-top: 10px;
+}
+
+.spammerz-auto-name-btn {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+/* === Auto Name Modal - Redesigned Landscape Layout === */
+.spammerz-modal-name {
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.spammerz-modal-content-name {
+  width: 900px;
+  max-width: 95vw;
+  padding: 0;
+  text-align: left;
+  background: var(--spammerz-card);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(57, 255, 20, 0.05) inset;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  animation: modalSlideIn 0.25s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.spammerz-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--spammerz-border);
+  background: linear-gradient(180deg, var(--spammerz-card) 0%, rgba(20, 20, 20, 0.8) 100%);
+  flex-shrink: 0;
+}
+
+.spammerz-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--spammerz-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spammerz-modal-header h2::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 20px;
+  background: var(--spammerz-accent);
+  border-radius: 2px;
+  box-shadow: 0 0 10px var(--spammerz-accent);
+}
+
+.spammerz-modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--spammerz-text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, sans-serif;
+}
+
+.spammerz-modal-close:hover {
+  background: rgba(255, 68, 68, 0.15);
+  color: var(--spammerz-error);
+}
+
+/* Landscape 2-Column Layout */
+.spammerz-name-landscape {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Left Column - Name Sources */
+.spammerz-name-column {
+  padding: 0;
+  overflow-y: auto;
+  max-height: calc(85vh - 160px);
+}
+
+.spammerz-name-column::-webkit-scrollbar {
+  width: 6px;
+}
+
+.spammerz-name-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.spammerz-name-column::-webkit-scrollbar-thumb {
+  background: var(--spammerz-border);
+  border-radius: 3px;
+}
+
+/* Name Fields Row */
+.spammerz-name-fields-section {
+  padding: 20px 24px;
+}
+
+.spammerz-name-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.spammerz-name-field {
+  background: var(--spammerz-surface);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 10px;
+  padding: 14px;
+  transition: all 0.2s ease;
+}
+
+.spammerz-name-field:hover {
+  border-color: var(--spammerz-border-light);
+}
+
+.spammerz-name-field.editable {
+  border-color: rgba(57, 255, 20, 0.3);
+}
+
+.spammerz-name-field.editable:hover {
+  border-color: var(--spammerz-accent);
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.1);
+}
+
+.spammerz-name-field.locked {
+  opacity: 0.6;
+}
+
+.spammerz-name-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.spammerz-name-field-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--spammerz-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spammerz-name-field-title svg {
+  width: 16px;
+  height: 16px;
+  color: var(--spammerz-accent);
+}
+
+.spammerz-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.spammerz-badge-editable {
+  background: rgba(57, 255, 20, 0.15);
+  color: var(--spammerz-accent);
+  border: 1px solid rgba(57, 255, 20, 0.3);
+}
+
+.spammerz-badge-locked {
+  background: var(--spammerz-border);
+  color: var(--spammerz-text-muted);
+  border: 1px solid transparent;
+}
+
+.spammerz-name-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-card);
+  color: var(--spammerz-text);
+  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.5;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.spammerz-name-textarea:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+  box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.1);
+}
+
+.spammerz-name-textarea::placeholder {
+  color: var(--spammerz-text-muted);
+}
+
+.spammerz-name-hint {
+  font-size: 11px;
+  color: var(--spammerz-text-muted);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.spammerz-weight-slider {
+  width: 100%;
+  max-width: 140px;
+  accent-color: var(--spammerz-accent);
+}
+.spammerz-weight-value {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  color: var(--spammerz-text-secondary);
+  min-width: 22px;
+  text-align: right;
+}
+
+.spammerz-name-hint::before {
+  content: 'ℹ';
+  font-size: 12px;
+}
+
+.spammerz-name-locked-content {
+  padding: 12px;
+  background: var(--spammerz-card);
+  border: 1px dashed var(--spammerz-border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.spammerz-name-locked-value {
+  font-size: 12px;
+  color: var(--spammerz-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.spammerz-name-locked-value::before {
+  content: '🔗';
+  font-size: 14px;
+}
+
+/* Right Column - Info */
+.spammerz-patterns-column {
+  background: linear-gradient(180deg, rgba(57, 255, 20, 0.03) 0%, transparent 100%);
+  border-left: 1px solid var(--spammerz-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.spammerz-patterns-column-content {
+  padding: 20px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.spammerz-name-section-title-row {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spammerz-name-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--spammerz-text-muted);
+}
+
+/* Action Buttons */
+.spammerz-modal-actions-name {
+  padding: 16px 24px;
+  border-top: 1px solid var(--spammerz-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--spammerz-card);
+  flex-shrink: 0;
+  border-left: 1px solid var(--spammerz-border);
+}
+
+.spammerz-modal-actions-name .spammerz-btn-primary {
+  width: auto;
+  min-width: 140px;
+  padding: 12px 24px;
+  font-size: 14px;
+}
+
+.spammerz-modal-actions-name .spammerz-btn-outline {
+  width: auto;
+  padding: 12px 24px;
+  font-size: 14px;
+}
+
+.spammerz-modal-actions-name .spammerz-btn-outline:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Modal Info Section */
+.spammerz-name-info-section {
+  margin-bottom: 24px;
+}
+
+.spammerz-name-info-section:last-child {
+  margin-bottom: 0;
+}
+
+.spammerz-name-detection-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 170, 0, 0.08);
+  border: 1px solid rgba(255, 170, 0, 0.2);
+  border-radius: 10px;
+  margin-top: 12px;
+}
+
+.spammerz-name-detection-display.detected {
+  background: rgba(57, 255, 20, 0.08);
+  border-color: rgba(57, 255, 20, 0.3);
+}
+
+.spammerz-detection-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 170, 0, 0.15);
+  border-radius: 8px;
+}
+
+.spammerz-name-detection-display.detected .spammerz-detection-icon {
+  background: rgba(57, 255, 20, 0.15);
+}
+
+.spammerz-detection-icon svg {
+  width: 18px;
+  height: 18px;
+  color: var(--spammerz-warning);
+}
+
+.spammerz-name-detection-display.detected .spammerz-detection-icon svg {
+  color: var(--spammerz-accent);
+}
+
+.spammerz-detection-text {
+  flex: 1;
+}
+
+.spammerz-detection-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--spammerz-text-muted);
+  margin-bottom: 4px;
+}
+
+.spammerz-detection-value {
+  font-size: 13px;
+  color: var(--spammerz-warning);
+  font-weight: 500;
+}
+
+.spammerz-name-detection-display.detected .spammerz-detection-value {
+  color: var(--spammerz-accent);
+}
+
+/* How It Works */
+.spammerz-how-it-works {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spammerz-how-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--spammerz-text-secondary);
+  line-height: 1.4;
+}
+
+.spammerz-how-num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--spammerz-border);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--spammerz-text-muted);
+}
+
 /* === Modal === */
 .spammerz-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 999999;
+  padding: 24px;
+  box-sizing: border-box;
+  animation: modalFadeIn 0.2s ease;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .spammerz-modal-content {
@@ -1133,22 +2015,26 @@
 
 /* === Scrollbar === */
 .spammerz-config-questions::-webkit-scrollbar,
-.spammerz-sandbox::-webkit-scrollbar {
+.spammerz-sandbox::-webkit-scrollbar,
+.spammerz-submission-panel .spammerz-config-questions::-webkit-scrollbar {
   width: 8px;
 }
 
 .spammerz-config-questions::-webkit-scrollbar-track,
-.spammerz-sandbox::-webkit-scrollbar-track {
+.spammerz-sandbox::-webkit-scrollbar-track,
+.spammerz-submission-panel .spammerz-config-questions::-webkit-scrollbar-track {
   background: var(--spammerz-surface);
 }
 
 .spammerz-config-questions::-webkit-scrollbar-thumb,
-.spammerz-sandbox::-webkit-scrollbar-thumb {
+.spammerz-sandbox::-webkit-scrollbar-thumb,
+.spammerz-submission-panel .spammerz-config-questions::-webkit-scrollbar-thumb {
   background: var(--spammerz-border);
   border-radius: 4px;
 }
 
 .spammerz-config-questions::-webkit-scrollbar-thumb:hover,
-.spammerz-sandbox::-webkit-scrollbar-thumb:hover {
+.spammerz-sandbox::-webkit-scrollbar-thumb:hover,
+.spammerz-submission-panel .spammerz-config-questions::-webkit-scrollbar-thumb:hover {
   background: var(--spammerz-border-light);
 }

@@ -40,13 +40,14 @@ let formData = null;
 let state = {
   answers: [],
   count: 100,
-  delayMs: 1500,
+  delayMs: 500,
   randomizeDelay: false,
   running: false,
   submitted: 0,
   succeeded: 0,
   failed: 0,
   lastResult: null,
+  autoNameConfig: null,
 };
 
 /** @type {AbortController | null} */
@@ -77,6 +78,7 @@ function init() {
 
   // Initialize default answer configs
   state.answers = formData.allQuestions.map(q => createDefaultConfig(q));
+  if (!state.autoNameConfig) state.autoNameConfig = createDefaultNameConfig();
 
   // Load and render UI
   loadUI();
@@ -94,6 +96,7 @@ function init() {
       if (result) {
         formData = result;
         state.answers = formData.allQuestions.map(q => createDefaultConfig(q));
+        if (!state.autoNameConfig) state.autoNameConfig = createDefaultNameConfig();
         loadUI();
       }
       return result;
@@ -206,29 +209,72 @@ function stopSubmissions() {
 function showError(message) {
   const container = document.createElement('div');
   container.id = 'spammerz-error';
-  container.innerHTML = `<h3>⚠ SpammerZ Error</h3><p>${message}</p>`;
+  container.innerHTML = `
+    <div class="spammerz-error-header">
+      <h3>⚠ SpammerZ Error</h3>
+      <button class="spammerz-error-toggle" id="spz-error-toggle" type="button">-</button>
+    </div>
+    <p class="spammerz-error-message">${message}</p>
+  `;
 
   const style = document.createElement('style');
   style.textContent = `
     #spammerz-error {
-      position: fixed; top: 20px; right: 20px;
+      position: fixed; right: 20px; bottom: 20px;
       background: #1a0000; border: 1px solid #ff4444;
       color: #ff4444; padding: 20px 30px;
       border-radius: 8px; font-family: -apple-system, sans-serif;
       font-size: 14px; z-index: 999999; max-width: 400px;
       box-shadow: 0 4px 20px rgba(255,68,68,0.3);
     }
-    #spammerz-error h3 { margin: 0 0 10px 0; font-size: 16px; }
-    #spammerz-error p { margin: 0; opacity: 0.9; }
+    #spammerz-error h3 { margin: 0; font-size: 16px; }
+    #spammerz-error p { margin: 10px 0 0 0; opacity: 0.9; }
+    #spammerz-error.collapsed {
+      padding: 6px 8px;
+      max-width: 44px;
+      min-width: 44px;
+      text-align: center;
+    }
+    #spammerz-error.collapsed p,
+    #spammerz-error.collapsed h3 {
+      display: none;
+    }
+    .spammerz-error-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .spammerz-error-toggle {
+      border: 1px solid #ff4444;
+      background: transparent;
+      color: #ff4444;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 24px;
+    }
+    .spammerz-error-toggle:hover {
+      background: rgba(255, 68, 68, 0.1);
+    }
   `;
   document.head.appendChild(style);
   document.body.appendChild(container);
+
+  const toggle = container.querySelector('#spz-error-toggle');
+  if (toggle) {
+    toggle.onclick = () => {
+      const isCollapsed = container.classList.toggle('collapsed');
+      toggle.textContent = isCollapsed ? '+' : '-';
+    };
+  }
 }
 
 // ============================================
 // FROM: content/types.js
 // ============================================
-/** @typedef {'short_text'|'paragraph'|'multiple_choice'|'checkbox'|'dropdown'|'linear_scale'|'date'|'time'|'grid'|'unknown'} QuestionType */
+/** @typedef {'short_text'|'paragraph'|'multiple_choice'|'checkbox'|'dropdown'|'linear_scale'|'date'|'time'|'grid'|'checkbox_grid'|'unknown'} QuestionType */
 
 /** @typedef {Object} FormQuestion
  * @property {string} id - entry.XXXXXXXX
@@ -237,7 +283,8 @@ function showError(message) {
  * @property {QuestionType} type
  * @property {boolean} required
  * @property {string[]} options
- * @property {string[]} [gridColumns]
+ * @property {string[]} [gridCols]
+ * @property {string[]} [gridColumns] - alias for gridCols
  * @property {number} [scaleMin]
  * @property {number} [scaleMax]
  * @property {string} [scaleMinLabel]
@@ -274,20 +321,23 @@ function showError(message) {
 // ============================================
 
 function parseFormFromPage() {
-  // Find the FB_PUBLIC_LOAD_DATA_ script tag — this is the source of truth
+  const raw = window.FB_PUBLIC_LOAD_DATA_;
+  if (raw && Array.isArray(raw)) {
+    return parseFromRawData(raw);
+  }
+
+  // Fallback: extract FB_PUBLIC_LOAD_DATA_ from script
   const scripts = Array.from(document.querySelectorAll('script'));
   const dataScript = scripts.find(s => s.textContent.includes('FB_PUBLIC_LOAD_DATA_'));
-  
+
   if (!dataScript) {
     console.error('[SpammerZ] FB_PUBLIC_LOAD_DATA_ not found');
     return null;
   }
 
-  // Extract the JSON array from the script
   const match = dataScript.textContent.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*(\[[\s\S]*?\]);\s*<\/script>/);
-  // Fallback: grab everything after the = sign
   const rawMatch = dataScript.textContent.match(/FB_PUBLIC_LOAD_DATA_\s*=\s*([\s\S]+?);?\s*$/);
-  
+
   let data;
   try {
     data = JSON.parse((match || rawMatch)[1]);
@@ -296,98 +346,146 @@ function parseFormFromPage() {
     return null;
   }
 
-  // data[1][1] is the array of question blocks
-  const questionBlocks = data?.[1]?.[1];
-  if (!Array.isArray(questionBlocks)) {
-    console.error('[SpammerZ] Unexpected data structure', data);
+  return parseFromRawData(data);
+}
+
+function parseFromRawData(raw) {
+  try {
+    const formMeta = raw[1];
+    const title = formMeta?.[8] ?? 'Untitled Form';
+    const description = formMeta?.[0] ?? '';
+    const formId = raw?.[2] || extractFormId(window.location.href);
+    const actionUrl = getActionUrl(raw);
+
+    const rawItems = formMeta?.[1] ?? [];
+    const pages = buildPages(rawItems);
+    const allQuestions = pages.flatMap(p => p.questions);
+
+    return {
+      formId,
+      title,
+      description,
+      actionUrl,
+      pages,
+      allQuestions,
+    };
+  } catch (err) {
+    console.error('[SpammerZ] Error parsing form:', err);
     return null;
   }
+}
 
-  const formTitle = data?.[1]?.[8] || 'Untitled Form';
-  const formId    = data?.[2] || extractFormId(window.location.href);
+function buildPages(rawItems) {
+  const pages = [];
+  let current = { index: 0, title: '', description: '', questions: [] };
+  pages.push(current);
 
-  const TYPE_MAP = {
-    0: 'short_text',
-    1: 'multiple_choice',
-    2: 'checkbox',
-    3: 'dropdown',
-    4: 'linear_scale',
-    5: 'grid',          // multiple choice grid
-    7: 'paragraph',
-    9: 'date',
-    10: 'time',
-  };
+  for (const item of rawItems) {
+    if (!Array.isArray(item)) continue;
 
-  const questions = [];
+    // Page break: item[3] === 8 with no entry data
+    if (item[3] === 8 && !item[4]?.[0]) {
+      current = {
+        index: pages.length,
+        title: item[1] ?? `Page ${pages.length + 1}`,
+        description: item[2] ?? '',
+        questions: [],
+      };
+      pages.push(current);
+      continue;
+    }
 
-  for (const block of questionBlocks) {
-    // Each block: [title, fieldData, type, ?, ?, ?, ...]
-    const title    = block[1] || 'Untitled question';
-    const typeCode = block[3];
-    const type     = TYPE_MAP[typeCode] || 'unknown';
-    const fields   = block[4]; // array of sub-fields (usually 1, more for grid)
+    const question = parseQuestion(item, current.index);
+    if (question) current.questions.push(question);
+  }
 
-    if (!fields) continue;
+  return pages;
+}
 
-    for (const field of fields) {
-      const entryId  = 'entry.' + field[0];
-      const required = field[2] === 1;
-      const options  = [];
+function parseQuestion(item, pageIndex) {
+  if (!item[4]?.[0]) return null;
 
-      // Options live at field[1]
-      if (Array.isArray(field[1])) {
-        for (const opt of field[1]) {
-          if (opt[0]) options.push(opt[0]);
-        }
-      }
+  const entry = item[4][0];
+  const entryId = `entry.${entry[0]}`;
+  const typeInt = item[3] ?? 0;
+  const type = TYPE_MAP[typeInt] ?? 'unknown';
+  const required = entry[2] === 1;
+  const title = item[1] ?? 'Question';
+  const description = item[2] ?? '';
 
-      // Linear scale bounds
-      let scaleMin, scaleMax, scaleMinLabel, scaleMaxLabel;
-      if (type === 'linear_scale' && field[3]) {
-        scaleMin      = field[3][0];
-        scaleMax      = field[3][1];
-        scaleMinLabel = field[3][2] || '';
-        scaleMaxLabel = field[3][3] || '';
-      }
-
-      questions.push({
-        id: entryId,
-        title,
-        type,
-        required,
-        options,
-        scaleMin, scaleMax, scaleMinLabel, scaleMaxLabel,
-        pageIndex: 0,
-      });
-
-      console.log(`[SpammerZ] Parsed: ${entryId} | ${type} | "${title}" | options: ${options.join(', ') || '—'}`);
+  const options = [];
+  if (Array.isArray(entry[1])) {
+    for (const opt of entry[1]) {
+      if (opt[0]) options.push(opt[0]);
     }
   }
 
-  const actionUrl = getFallbackActionUrl();
+  const gridColumns = [];
+  if ((type === 'grid' || type === 'checkbox_grid') && Array.isArray(item[4][1]?.[1])) {
+    for (const col of item[4][1][1]) {
+      if (col[0]) gridColumns.push(col[0]);
+    }
+  }
 
-  return {
-    formId,
-    title: formTitle,
-    description: '',
-    actionUrl,
-    pages: [{ index: 0, title: '', description: '', questions }],
-    allQuestions: questions,
+  const question = {
+    id: entryId,
+    title,
+    description,
+    type,
+    required,
+    options,
+    pageIndex,
   };
+
+  if (type === 'linear_scale' && entry[1]?.[0]?.[3]) {
+    const bounds = entry[1][0][3];
+    question.scaleMin = bounds[0] ?? 1;
+    question.scaleMax = bounds[1] ?? 5;
+    question.scaleMinLabel = bounds[2] ?? '';
+    question.scaleMaxLabel = bounds[3] ?? '';
+  }
+
+  if (gridColumns.length) {
+    question.gridColumns = gridColumns;
+  }
+
+  return question;
 }
+
+const TYPE_MAP = {
+  0: 'short_text',
+  1: 'paragraph',
+  2: 'multiple_choice',
+  3: 'dropdown',
+  4: 'checkbox',
+  5: 'linear_scale',
+  7: 'date',
+  8: 'time',
+  9: 'grid',
+  27: 'checkbox_grid',
+  73: 'checkbox_grid',
+};
 
 function extractFormId(url) {
   return url.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1] || 'unknown';
 }
 
-function getFallbackActionUrl() {
-  // Works on /viewform, /prefill, and edit URLs
+function getActionUrl(raw) {
+  const liveForm = document.querySelector('form[action*="formResponse"]');
+  if (liveForm?.getAttribute('action')) {
+    return liveForm.getAttribute('action');
+  }
+  if (raw?.[14]) {
+    const base = String(raw[14]);
+    if (base.includes('/formResponse')) return base;
+    return base.replace(/\/$/, '') + '/formResponse';
+  }
   const base = window.location.href
     .replace(/\/viewform.*$/, '')
     .replace(/\/prefill.*$/, '')
     .replace(/\/edit.*$/, '')
     .replace(/\/closedform.*$/, '');
-  return base + '/formResponse';
+  return base.replace(/\/$/, '') + '/formResponse';
 }
 
 function hasRecaptcha() {
@@ -425,9 +523,11 @@ function resolveDelay(baseMs, randomize) {
 
 function createDefaultConfig(question) {
   let values = [...question.options];
-  if (question.type === 'linear_scale' && question.scaleMin !== undefined) {
+  if (question.type === 'linear_scale') {
+    const scaleMin = Number.isFinite(question.scaleMin) ? question.scaleMin : 1;
+    const scaleMax = Number.isFinite(question.scaleMax) ? question.scaleMax : Math.max(scaleMin, 5);
     values = [];
-    for (let i = question.scaleMin; i <= question.scaleMax; i++) values.push(String(i));
+    for (let i = scaleMin; i <= scaleMax; i++) values.push(String(i));
   }
   if (!values.length) values = [''];
   const equalWeight = Math.floor(100 / values.length);
@@ -437,6 +537,20 @@ function createDefaultConfig(question) {
     mode: 'uniform',
     values,
     weights: values.length > 1 ? values.map((_, i) => i === values.length - 1 ? 100 - (equalWeight * (values.length - 1)) : equalWeight) : [100],
+  };
+}
+
+function createDefaultNameConfig() {
+  return {
+    enabled: true,
+    fields: [],
+    sources: {
+      firstNames: ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Lisa', 'James', 'Mary'],
+      lastNames: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'],
+    },
+    patterns: ['first_last'],
+    extensionIdx: 0,
+    includeExtension: false,
   };
 }
 
