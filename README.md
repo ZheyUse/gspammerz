@@ -16,16 +16,42 @@ SpammerZ is a Chrome browser extension that automates Google Form submissions. I
 
 ## Features
 
+SpammerZ is a full automation suite, not just a bulk submitter. It blends smart detection, weighted randomization, and live DOM filling so you can configure a form once and run clean batches fast.
+
+### Core Capabilities
+
 - **No server needed** — runs entirely in your browser
 - **Reliable parsing** — extracts form data from Google's own internal JSON (FB_PUBLIC_LOAD_DATA_)
-- **All question types** — short text, paragraph, multiple choice, checkbox, dropdown, linear scale, date, time, grid
-- **Randomization** — uniform random or weighted percentages
-- **Configurable delay** — with optional jitter (±50%), default 500ms
-- **Live progress** — real-time submission counter
+- **All question types** — short text, paragraph, multiple choice, checkbox, dropdown, linear scale, date, time, grid, checkbox grid
+- **Live form preview** — fills the real Google Form DOM for preview and testing
+- **State persistence** — remembers your settings across sessions
+
+### Smart Detection + Autofill
+
+- **Smart detection engine** — auto-detects name, address, and survey intent fields
+- **Gender / sex detection** — detects gender/sex questions and lets you control the answer pool
+- **Age detection** — auto-fills age fields with configurable min/max range
+- **Smart survey answers** — context-aware values for common patterns: email, phone, birthdate, school, course/strand, year level, occupation, religion, household size, consent/eligibility
+- **Auto name generator** — full name patterns, first/middle/last/MI, extension support, and uppercase-aware output
+- **Auto address generator** — country-aware address profiles with region/city/barangay/zip and dependent location fields
+- **Auto country detection** — infers country from form fields and detected location data
+- **Dynamic address modal** — country profiles, cascading region/city/dependent fields, live zip previews, and search-filtered dropdowns
+
+### Weights, Sliders, and Randomization
+
+- **Slider-based weighting** — per-option sliders with live percentage readout and total weight summary
+- **Two weighting modes** — Plan (pre-calculated distribution) or Dice (independent random rolls)
+- **Randomize weights** — one-click random weight generation across options
+- **Uniform or weighted picks** — supports classic random or strict weighting per question
+
+### Submission Experience
+
+- **Configurable delay** — base delay with optional jitter (±50%) to mimic human pacing
+- **Live progress modal** — realtime submitted/succeeded/failed counters
+- **Minimized progress pill** — keep progress visible while working
+- **Stop anytime** — halt submissions mid-run with a single click
 - **Enable/Disable toggle** — hide the UI to use the form normally
-- **State persistence** — remembers settings across sessions
-- **Live form preview** — fills the real Google Form DOM for preview
-- **Minimized progress pill** — keep progress visible while you work
+- **High-volume runs** — scale submissions up to 10,000 per run
 
 ---
 
@@ -35,7 +61,7 @@ SpammerZ is a Chrome browser extension that automates Google Form submissions. I
 
 ```bash
 # Clone or download this repository
-git clone https://github.com/yourusername/spammerz.git
+git clone https://github.com/ZheyUse/gspammerz.git
 # Or just copy the spammerz folder
 ```
 
@@ -90,6 +116,34 @@ For each question:
 ### 6. Disable When Not Needed
 
 Click the **✕ button** in the top-right header to disable. The workspace hides and you can use the form normally. Click the floating **⚡ SpammerZ** button to re-enable.
+
+---
+
+## Screenshots
+
+### Submission Settings
+
+![Submission Settings](images/Submission_settings.png)
+
+### General Settings
+
+![General Settings](images/General_Settings.png)
+
+### Configure Weights
+
+![Configure Weights](images/Configure_weights.png)
+
+### Auto Name Settings
+
+![Auto Name Settings](images/Auto_name_settings.png)
+
+### Auto Address Settings
+
+![Auto Address Settings](images/Auto_addres_Settings.png)
+
+### Submitting Responses
+
+![Submitting Responses](images/Submitting_responses.png)
 
 ---
 

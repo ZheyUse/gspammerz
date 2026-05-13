@@ -42,12 +42,14 @@ let state = {
   count: 100,
   delayMs: 500,
   randomizeDelay: false,
+  weightMode: 'plan',
   running: false,
   submitted: 0,
   succeeded: 0,
   failed: 0,
   lastResult: null,
   autoNameConfig: null,
+  autoAddressConfig: null,
 };
 
 /** @type {AbortController | null} */
@@ -73,12 +75,12 @@ function init() {
 
   // Check for reCAPTCHA
   if (hasRecaptcha()) {
-    console.warn('[SpammerZ] reCAPTCHA detected - submissions may be blocked');
   }
 
   // Initialize default answer configs
   state.answers = formData.allQuestions.map(q => createDefaultConfig(q));
   if (!state.autoNameConfig) state.autoNameConfig = createDefaultNameConfig();
+  if (!state.autoAddressConfig && window.createDefaultAddressConfig) state.autoAddressConfig = window.createDefaultAddressConfig();
 
   // Load and render UI
   loadUI();
@@ -91,7 +93,6 @@ function init() {
     getState: () => state,
     getForm: () => formData,
     reparse: () => {
-      console.log('[SpammerZ] Manual reparse triggered');
       const result = parseFormFromPage();
       if (result) {
         formData = result;
@@ -496,23 +497,28 @@ function hasRecaptcha() {
 // FROM: content/randomizer.js
 // ============================================
 function resolveAnswer(config) {
-  const { values, weights, randomize, mode } = config;
+  const { values, weights, randomize } = config;
   if (!values?.length) return '';
   if (!randomize || values.length === 1) return values[0];
-  if (mode === 'weighted' && weights?.length === values.length) {
+  if (weights?.length === values.length) {
     return weightedPick(values, weights);
   }
   return values[Math.floor(Math.random() * values.length)];
 }
 
 function weightedPick(values, weights) {
-  const total = weights.reduce((a, b) => a + b, 0);
+  const total = weights.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
+  if (total <= 0) return values[Math.floor(Math.random() * values.length)];
+
   let r = Math.random() * total;
   for (let i = 0; i < values.length; i++) {
-    r -= weights[i];
+    const weight = Math.max(0, Number(weights[i]) || 0);
+    if (weight <= 0) continue;
+    r -= weight;
     if (r <= 0) return values[i];
   }
-  return values[values.length - 1];
+  const weightedValues = values.filter((_, i) => Math.max(0, Number(weights[i]) || 0) > 0);
+  return weightedValues[weightedValues.length - 1] || values[values.length - 1];
 }
 
 function resolveDelay(baseMs, randomize) {
@@ -534,7 +540,7 @@ function createDefaultConfig(question) {
   return {
     questionId: question.id,
     randomize: values.length > 1,
-    mode: 'uniform',
+    mode: 'weighted',
     values,
     weights: values.length > 1 ? values.map((_, i) => i === values.length - 1 ? 100 - (equalWeight * (values.length - 1)) : equalWeight) : [100],
   };
@@ -548,6 +554,7 @@ function createDefaultNameConfig() {
       firstNames: ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Lisa', 'James', 'Mary'],
       lastNames: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'],
     },
+    namesLoadedFromMd: false,
     patterns: ['first_last'],
     extensionIdx: 0,
     includeExtension: false,

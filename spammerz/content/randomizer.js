@@ -11,12 +11,12 @@ import { defaultAnswerConfig } from './randomizer.js';
  * @returns {string}
  */
 export function resolveAnswer(config) {
-  const { values, weights, randomize, mode } = config;
+  const { values, weights, randomize } = config;
 
   if (!values || !values.length) return '';
   if (!randomize || values.length === 1) return values[0];
 
-  if (mode === 'weighted' && weights && weights.length === values.length) {
+  if (weights && weights.length === values.length) {
     return weightedPick(values, weights);
   }
 
@@ -31,15 +31,20 @@ export function resolveAnswer(config) {
  * @returns {string}
  */
 export function weightedPick(values, weights) {
-  const total = weights.reduce((a, b) => a + b, 0);
+  const total = weights.reduce((a, b) => a + Math.max(0, Number(b) || 0), 0);
+  if (total <= 0) return values[Math.floor(Math.random() * values.length)];
+
   let r = Math.random() * total;
 
   for (let i = 0; i < values.length; i++) {
-    r -= weights[i];
+    const weight = Math.max(0, Number(weights[i]) || 0);
+    if (weight <= 0) continue;
+    r -= weight;
     if (r <= 0) return values[i];
   }
 
-  return values[values.length - 1];
+  const weightedValues = values.filter((_, i) => Math.max(0, Number(weights[i]) || 0) > 0);
+  return weightedValues[weightedValues.length - 1] || values[values.length - 1];
 }
 
 /**
@@ -84,7 +89,7 @@ export function createDefaultConfig(question) {
   const config = {
     questionId: question.id,
     randomize,
-    mode: 'uniform',
+    mode: 'weighted',
     values,
   };
 

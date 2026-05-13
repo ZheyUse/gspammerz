@@ -39,6 +39,23 @@
   box-sizing: border-box;
 }
 
+#spammerz-container button:not(:disabled),
+#spammerz-container [role="button"],
+#spammerz-container label,
+#spammerz-container select,
+#spammerz-container input[type="checkbox"],
+#spammerz-container input[type="radio"],
+#spammerz-container input[type="range"] {
+  cursor: pointer;
+}
+
+#spammerz-container button:disabled,
+#spammerz-container input:disabled,
+#spammerz-container select:disabled,
+#spammerz-container textarea:disabled {
+  cursor: not-allowed;
+}
+
 /* === Backdrop === */
 .spammerz-backdrop {
   position: absolute;
@@ -1096,6 +1113,42 @@
   z-index: 10;
 }
 
+.spammerz-weights-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spammerz-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.spammerz-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.spammerz-icon-btn:hover {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.08);
+  transform: translateY(-1px);
+}
+
+.spammerz-icon-btn:active {
+  transform: translateY(0);
+}
+
 .spammerz-weights-panel .spammerz-config-questions {
   flex: 1;
   overflow-y: auto;
@@ -1327,6 +1380,7 @@
   box-shadow:
     0 4px 15px rgba(57, 255, 20, 0.4),
     0 0 0 1px rgba(57, 255, 20, 0.2) inset;
+  cursor: pointer;
   overflow: hidden;
 }
 
@@ -1388,6 +1442,7 @@
   background: transparent;
   color: var(--spammerz-text);
   border: 1px solid var(--spammerz-border);
+  cursor: pointer;
 }
 
 .spammerz-btn-outline:hover {
@@ -1397,13 +1452,36 @@
 
 .spammerz-btn-danger {
   width: 100%;
-  background: transparent;
-  color: var(--spammerz-error);
-  border: 1px solid var(--spammerz-error);
+  padding: 12px 20px;
+  background: linear-gradient(135deg, rgba(255, 68, 68, 0.2) 0%, rgba(255, 68, 68, 0.05) 100%);
+  color: #ff8080;
+  border: 1px solid rgba(255, 68, 68, 0.6);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  box-shadow:
+    0 8px 18px rgba(255, 68, 68, 0.18),
+    0 0 0 1px rgba(255, 68, 68, 0.15) inset;
+  transition: all 0.15s ease;
 }
 
 .spammerz-btn-danger:hover {
-  background: rgba(255, 68, 68, 0.1);
+  background: linear-gradient(135deg, rgba(255, 68, 68, 0.35) 0%, rgba(255, 68, 68, 0.1) 100%);
+  color: #ffd3d3;
+  box-shadow:
+    0 10px 24px rgba(255, 68, 68, 0.25),
+    0 0 16px rgba(255, 68, 68, 0.2);
+  transform: translateY(-1px);
+}
+
+.spammerz-btn-danger:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 6px 14px rgba(255, 68, 68, 0.2),
+    0 0 0 1px rgba(255, 68, 68, 0.15) inset;
 }
 
 /* === Settings Button === */
@@ -1419,6 +1497,316 @@
 
 .spammerz-auto-name-section {
   padding: 4px 0;
+}
+
+.spammerz-auto-address-section {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--spammerz-border);
+}
+
+.spammerz-weight-mode-section {
+  padding: 4px 0 16px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--spammerz-border);
+}
+
+.spammerz-mode-card-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.spammerz-mode-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.spammerz-mode-card:hover,
+.spammerz-mode-card.active {
+  border-color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.08);
+  color: var(--spammerz-text);
+}
+
+.spammerz-mode-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spammerz-mode-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--spammerz-card);
+  color: var(--spammerz-accent);
+}
+
+.spammerz-mode-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.spammerz-mode-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spammerz-mode-title {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.spammerz-mode-desc {
+  font-size: 10px;
+  color: var(--spammerz-text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.spammerz-modal-content-address {
+  width: min(760px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  background: var(--spammerz-card);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(57, 255, 20, 0.05) inset;
+}
+
+.spammerz-address-modal-body {
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.spammerz-address-modal-body .spammerz-settings-row {
+  min-width: 0;
+}
+
+.spammerz-address-modal-body .spammerz-settings-row label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--spammerz-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.spammerz-address-detected {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.spammerz-address-detected strong {
+  color: var(--spammerz-accent);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spammerz-address-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.spammerz-address-chip {
+  position: relative;
+  padding: 9px 10px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.spammerz-address-chip.active,
+.spammerz-address-chip:hover {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.08);
+}
+
+.spammerz-address-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spammerz-address-select {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  box-sizing: border-box;
+}
+
+.spammerz-address-search {
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-card);
+  color: var(--spammerz-text);
+  box-sizing: border-box;
+  font-size: 12px;
+}
+
+.spammerz-address-search:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+  box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.1);
+}
+
+.spammerz-address-search::placeholder {
+  color: var(--spammerz-text-muted);
+}
+
+.spammerz-age-config,
+.spammerz-smart-config {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spammerz-age-range-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.spammerz-age-range-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--spammerz-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.spammerz-age-input {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  box-sizing: border-box;
+}
+
+.spammerz-age-input:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+  box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.1);
+}
+
+.spammerz-smart-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.spammerz-smart-chip {
+  position: relative;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.spammerz-smart-chip:hover,
+.spammerz-smart-chip.active {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.08);
+}
+
+.spammerz-smart-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spammerz-address-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--spammerz-text-muted);
+  grid-column: 1 / -1;
+}
+
+.spammerz-address-components {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.spammerz-address-components span {
+  padding: 6px 9px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--spammerz-text-secondary);
+  font-size: 11px;
+}
+
+.spammerz-modal-content-address .spammerz-modal-header,
+.spammerz-modal-content-address .spammerz-modal-actions-name {
+  flex-shrink: 0;
+}
+
+.spammerz-modal-content-address .spammerz-modal-actions-name {
+  border-left: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .spammerz-auto-name-header {
@@ -1470,7 +1858,7 @@
 
 /* === Auto Name Modal - Redesigned Landscape Layout === */
 .spammerz-modal-name {
-  padding: 24px;
+  padding: 16px;
   box-sizing: border-box;
 }
 
@@ -1797,6 +2185,40 @@
 
 .spammerz-modal-actions-name .spammerz-btn-outline:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 640px) {
+  .spammerz-modal-name {
+    padding: 8px;
+  }
+
+  .spammerz-modal-content-address {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: 12px;
+  }
+
+  .spammerz-modal-content-address .spammerz-modal-header {
+    padding: 14px 16px;
+  }
+
+  .spammerz-address-modal-body {
+    grid-template-columns: 1fr;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .spammerz-modal-content-address .spammerz-modal-actions-name {
+    padding: 12px 16px;
+  }
+
+  .spammerz-modal-content-address .spammerz-modal-actions-name .spammerz-btn-primary,
+  .spammerz-modal-content-address .spammerz-modal-actions-name .spammerz-btn-outline {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 12px;
+  }
 }
 
 /* Modal Info Section */
