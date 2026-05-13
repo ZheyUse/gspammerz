@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SpammerZ",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Bulk submit Google Forms with random answers — serverless",
   "author": "SpammerZ",
 
@@ -28,7 +28,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["ui/panel.js", "ui/panel.css", "icons/*", "Names/FirstName/firstname.md", "Names/LastName/lastname.md"],
+      "resources": ["ui/panel.js", "ui/panel.css", "icons/*", "Names/FirstName/firstname.md", "Names/LastName/lastname.md", "options/courses.md", "options/profession.md"],
       "matches": ["<all_urls>"]
     }
   ],

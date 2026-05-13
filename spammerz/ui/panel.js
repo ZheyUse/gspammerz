@@ -53,6 +53,12 @@ function renderSpammerZUI(formData, state, updateState) {
     }
   }
 
+  // Pre-load courses from markdown file
+  preloadCourses();
+
+  // Pre-load professions from markdown file
+  preloadProfessions();
+
   if (!window.spammerzState.autoAddressConfig) {
     window.spammerzState.autoAddressConfig = createDefaultAddressConfig();
     if (typeof updateState === 'function') {
@@ -984,24 +990,17 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
   const isBirthdateField = smartBinding?.fieldType === 'birthdate';
   const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type) || isBirthdateField;
   const isConsentField = smartBinding?.fieldType === 'consent';
-  const isSmartField = !!smartBinding && !isAgeField && (isTypedQuestion || isConsentField);
-  if (smartBinding?.fieldType === 'birthdate') {
-    console.debug('[SpammerZ Detect]', {
-      context: 'birthdate-weight-panel',
-      questionIndex: qIdx,
-      questionId: question.id,
-      title: question.title,
-      type: question.type,
-      isTypedQuestion,
-      isSmartField,
-    });
-  }
+  const isSmartField = !!smartBinding && !isAgeField && (isTypedQuestion || isConsentField || smartBinding?.fieldType === 'date');
+
   const nameBindingLabel = nameBinding
     ? getNameBindingDisplayLabel(nameBinding, nameFieldLabels)
     : '';
 
   // Question title header
   let headerHtml = `<div class="spammerz-config-item-title">${escHtml(question.title)}</div>`;
+
+  // Check if extension field but extension is disabled
+  const isExtensionDisabled = nameBinding?.fieldType === 'extension' && !cfg?.includeExtension;
 
   if (isNameField || isAddressField) {
     const typeLabel = getTypeName(isBirthdateField ? 'date' : question.type);
@@ -1010,16 +1009,32 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
     `;
     item.innerHTML = headerHtml;
 
-    // Show auto-fill field detection (locked, green)
+    // Show auto-fill field detection (locked, green or red warning if extension disabled)
     const nameDetector = document.createElement('div');
-    nameDetector.className = 'spammerz-name-detected-badge';
-    nameDetector.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-      <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(isNameField ? nameBindingLabel : getAddressFieldLabel(addressBinding.fieldType))}</strong></span>
-    `;
+
+    if (isExtensionDisabled) {
+      // Red warning badge for disabled extension
+      nameDetector.className = 'spammerz-name-detected-badge spammerz-name-detected-badge-warning';
+      nameDetector.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(nameBindingLabel)}</strong></span>
+        <span class="spammerz-detected-warning" title="Extension is disabled. Please enable it in Auto Name Settings for this feature to work.">!</span>
+      `;
+    } else {
+      // Normal green badge
+      nameDetector.className = 'spammerz-name-detected-badge';
+      nameDetector.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(isNameField ? nameBindingLabel : getAddressFieldLabel(addressBinding.fieldType))}</strong></span>
+      `;
+    }
     item.appendChild(nameDetector);
   } else {
     const typeLabel = getTypeName(isBirthdateField ? 'date' : question.type);
@@ -1197,22 +1212,26 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (!question) return null;
   const title = normalizeNameTitle(question.title || '');
   const base = { questionIndex: idx, questionId: question.id, title: question.title };
+
+  // Check for native Google Forms date picker type
+  if (question.type === 'date' && !/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) {
+
+    return { ...base, fieldType: 'date' };
+  }
+
   if (/\b(gender|sex|biological\s*sex)\b/.test(title)) return { ...base, fieldType: /\bsex\b/.test(title) && !/\bgender\b/.test(title) ? 'sex' : 'gender' };
   if (/\b(e-?mail|gmail|email\s*address)\b/.test(title)) return { ...base, fieldType: 'email' };
   if (/\b(contact\s*(number|no)|mobile\s*(number|no)?|phone\s*(number|no)?|cellphone|cell\s*number|telephone)\b/.test(title)) return { ...base, fieldType: 'phone' };
   if (/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) {
-    console.debug('[SpammerZ Detect]', {
-      context: 'birthdate-detected',
-      questionIndex: idx,
-      questionId: question.id,
-      title: question.title,
-    });
+
     return { ...base, fieldType: 'birthdate' };
   }
+  // Generic date field detection (not birthday variants)
+  if (/\bdate\b/.test(title)) return { ...base, fieldType: 'date' };
   if (/\b(school|university|college|campus|institution)\b/.test(title)) return { ...base, fieldType: 'school' };
   if (/\b(course|program|degree|strand|track)\b/.test(title)) return { ...base, fieldType: 'course' };
   if (/\b(year\s*level|grade\s*level|academic\s*year|section)\b/.test(title)) return { ...base, fieldType: 'yearLevel' };
-  if (/\b(occupation|job|employment\s*status|work\s*status)\b/.test(title)) return { ...base, fieldType: 'occupation' };
+  if (/\b(occupation|profession|job|title|work|current\s+(profession|work|job)|employment\s*status|work\s*status)\b/.test(title)) return { ...base, fieldType: 'occupation' };
   if (/\breligion\b/.test(title)) return { ...base, fieldType: 'religion' };
   if (/\b(household\s*size|number\s*of\s*(family|household)\s*members|family\s*members)\b/.test(title)) return { ...base, fieldType: 'householdSize' };
   if (/\b(i\s*agree|consent|data\s*privacy|terms|privacy\s*policy|agree\s*to\s*participate)\b/.test(title)) return { ...base, fieldType: 'consent' };
@@ -1281,6 +1300,7 @@ function getSmartSurveyFieldLabel(fieldType) {
     email: 'Email',
     phone: 'Phone Number',
     birthdate: 'Birthdate',
+    date: 'Date',
     school: 'School / University',
     course: 'Course / Program / Strand',
     yearLevel: 'Year / Grade Level',
@@ -1363,7 +1383,7 @@ function detectNameQuestions(questions) {
       detected.push({ ...base, fieldType: 'middlename' });
     } else if (/\blast\s*name\b/.test(title) || /\bsurnames?\b/.test(title) || /\bfamily\s*name\b/.test(title) || /\bmaiden\s*name\b/.test(title)) {
       detected.push({ ...base, fieldType: 'lastname' });
-    } else if (/\bfull\s*name\b/.test(title) || title === 'name' || title.match(/^name\s*[\*]*$/) || isRelationshipNameTitle(title)) {
+    } else if (/\bfull\s*name\b|\bcomplete\s*name\b|\bname\s+of\b|participant\s+name|\byour\s+name\b/.test(title) || title === 'name' || title.match(/^name\s*[\*]*$/) || isRelationshipNameTitle(title)) {
       detected.push({ ...base, fieldType: 'fullname' });
     } else if (/\bm\.?i\.?\b/.test(title) || /\bmiddle\s*initial\b/.test(title)) {
       detected.push({ ...base, fieldType: 'mi' });
@@ -2318,14 +2338,6 @@ function renderSandbox(formData, s) {
   sandbox.innerHTML = `
     <div class="spammerz-live-form-shell">
       <div class="spammerz-live-form-host" id="spz-live-form-host"></div>
-      <div class="spammerz-gform-footer">
-        <span class="spammerz-gform-progress-text" id="spz-progress-text">
-          ${s.submitted}/${s.count} submitted
-        </span>
-        <button class="spammerz-btn-outline spammerz-gform-refresh" id="spz-refresh-preview">
-          Refresh Preview
-        </button>
-      </div>
     </div>
   `;
 
@@ -2476,7 +2488,7 @@ function createSmartSurveyContext(formData, state, generatedName, generatedAddre
 function resolveSmartSurveyValue(question, cfg, context, idx = 0) {
   const binding = detectSmartSurveyQuestion(question, idx);
   if (!binding) return null;
-  const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type) || binding.fieldType === 'birthdate';
+  const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type) || binding.fieldType === 'birthdate' || binding.fieldType === 'date';
   if (!isTypedQuestion && binding.fieldType !== 'consent') return null;
   const raw = generateSmartSurveyValue(binding.fieldType, question, cfg, context);
   if (raw == null || raw === '') return null;
@@ -2494,14 +2506,18 @@ function generateSmartSurveyValue(fieldType, question, cfg, context) {
       return generatePhoneNumber(context.countryCode);
     case 'birthdate':
       return generateBirthdateFromAge(context.age, question.type);
+    case 'date':
+      return new Date().toISOString().slice(0, 10); // Today's date: YYYY-MM-DD
     case 'school':
       return context.schoolName;
     case 'course':
       return generateCourseOrStrand(context.schoolName);
     case 'yearLevel':
       return generateYearLevel(context.schoolName);
-    case 'occupation':
-      return pickRandom(['Student', 'Employed', 'Self-employed', 'Unemployed']);
+    case 'occupation': {
+      const professions = window.spammerzProfessions || ['Student', 'Employed', 'Self-employed', 'Unemployed'];
+      return pickRandom(professions);
+    }
     case 'religion':
       return pickRandom(['Roman Catholic', 'Christian', 'Islam', 'Iglesia ni Cristo', 'Prefer not to say']);
     case 'householdSize': {
@@ -2575,14 +2591,21 @@ function generateCourseOrStrand(schoolName = '') {
   if (/\b(high\s*school|senior\s*high|national\s*high)\b/i.test(schoolName)) {
     return pickRandom(['STEM', 'HUMSS', 'ABM', 'GAS', 'TVL']);
   }
-  return pickRandom(['BS Information Technology', 'BS Computer Science', 'BS Business Administration', 'BS Hospitality Management', 'Bachelor of Secondary Education']);
+  const courses = window.spammerzCourses || [
+    'BS Information Technology',
+    'BS Computer Science',
+    'BS Business Administration',
+    'BS Hospitality Management',
+    'Bachelor of Secondary Education'
+  ];
+  return pickRandom(courses);
 }
 
 function generateYearLevel(schoolName = '') {
   if (/\b(high\s*school|senior\s*high|national\s*high)\b/i.test(schoolName)) {
     return pickRandom(['Grade 11', 'Grade 12']);
   }
-  return pickRandom(['1st Year', '2nd Year', '3rd Year', '4th Year']);
+  return pickRandom(['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year', 'Graduate', 'Postgraduate']);
 }
 
 function pickBestConsentOption(question) {
@@ -3011,6 +3034,84 @@ async function loadNamesFromMdFiles() {
 }
 
 /**
+ * Load courses from markdown file
+ */
+async function loadCoursesFromMdFile() {
+  try {
+    const getResourceUrl = (path) => (
+      window.chrome?.runtime?.getURL ? chrome.runtime.getURL(path) : path
+    );
+    const res = await fetch(getResourceUrl('options/courses.md'));
+    if (!res.ok) {
+      throw new Error(`Course source fetch failed: ${res.status}`);
+    }
+    const text = await res.text();
+    return text.split(/\r?\n/).map(n => n.trim()).filter(Boolean);
+  } catch (e) {
+    return [
+      'BS Information Technology',
+      'BS Computer Science',
+      'BS Business Administration',
+      'BS Hospitality Management',
+      'Bachelor of Secondary Education'
+    ];
+  }
+}
+
+/**
+ * Ensure courses are loaded
+ */
+async function ensureCoursesLoaded() {
+  if (!window.spammerzCourses) {
+    window.spammerzCourses = await loadCoursesFromMdFile();
+  }
+  return window.spammerzCourses;
+}
+
+/**
+ * Pre-load courses (call this at initialization)
+ */
+function preloadCourses() {
+  ensureCoursesLoaded(); // Fire and forget, will cache
+}
+
+/**
+ * Load professions from markdown file
+ */
+async function loadProfessionsFromMdFile() {
+  try {
+    const getResourceUrl = (path) => (
+      window.chrome?.runtime?.getURL ? chrome.runtime.getURL(path) : path
+    );
+    const res = await fetch(getResourceUrl('options/profession.md'));
+    if (!res.ok) {
+      throw new Error(`Profession source fetch failed: ${res.status}`);
+    }
+    const text = await res.text();
+    return text.split(/\r?\n/).map(n => n.trim()).filter(Boolean);
+  } catch (e) {
+    return ['Student', 'Employed', 'Self-employed', 'Unemployed'];
+  }
+}
+
+/**
+ * Ensure professions are loaded
+ */
+async function ensureProfessionsLoaded() {
+  if (!window.spammerzProfessions) {
+    window.spammerzProfessions = await loadProfessionsFromMdFile();
+  }
+  return window.spammerzProfessions;
+}
+
+/**
+ * Pre-load professions (call this at initialization)
+ */
+function preloadProfessions() {
+  ensureProfessionsLoaded(); // Fire and forget, will cache
+}
+
+/**
  * Create default naming configuration
  */
 function createDefaultNameConfig() {
@@ -3310,11 +3411,15 @@ function attachAllListeners(formData, s, updateState) {
     };
   });
 
-  // Start button
-  const startBtn = document.getElementById('spz-start-btn');
-  if (startBtn) {
-    startBtn.onclick = () => {
+  // Start button - use event delegation to avoid handler issues on re-render
+  const container = document.getElementById('spammerz-container');
+  if (container) {
+    container.onclick = (e) => {
+      const startBtn = e.target.closest('#spz-start-btn');
+      if (!startBtn) return;
+      if (startBtn.disabled) return;
       if (window.spammerzState.running) return;
+      // Use fresh state from window to avoid closure staleness
       const nextState = {
         ...window.spammerzState,
         running: true,
@@ -3323,7 +3428,7 @@ function attachAllListeners(formData, s, updateState) {
         failed: 0,
       };
       updateState(nextState);
-      startSubmissionLoop(formData, nextState, updateState);
+      startSubmissionLoop(window.spammerzFormData, nextState, updateState);
     };
   }
 
@@ -3348,14 +3453,6 @@ function attachAllListeners(formData, s, updateState) {
   if (addressSettingsBtn) {
     addressSettingsBtn.onclick = () => {
       renderAutoAddressModal(window.spammerzState);
-    };
-  }
-
-  // Refresh live preview
-  const refreshBtn = document.getElementById('spz-refresh-preview');
-  if (refreshBtn) {
-    refreshBtn.onclick = () => {
-      refreshLivePreview(formData, window.spammerzState);
     };
   }
 
