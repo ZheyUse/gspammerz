@@ -1399,6 +1399,7 @@ function normalizeNameTitle(title) {
   return String(title || '')
     .toLowerCase()
     .replace(/[’']/g, '')
+    .replace(/^[0-9]+\.\s*/, '')  // strip leading "1. ", "2. " etc.
     .replace(/\s+/g, ' ')
     .trim();
 }
