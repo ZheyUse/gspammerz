@@ -23,7 +23,6 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 - **No server needed** — runs entirely in your browser
 - **Reliable parsing** — extracts form data from Google's own internal JSON (FB_PUBLIC_LOAD_DATA_)
 - **All question types** — short text, paragraph, multiple choice, checkbox, dropdown, linear scale, date, time, grid, checkbox grid
-- **Live form preview** — fills the real Google Form DOM for preview and testing
 - **State persistence** — remembers your settings across sessions
 
 ### Smart Detection + Autofill
@@ -31,13 +30,40 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 - **Smart detection engine** — auto-detects name, address, and survey intent fields
 - **Gender / sex detection** — detects gender/sex questions and lets you control the answer pool
 - **Age detection** — auto-fills age fields with configurable min/max range
-- **Smart survey answers** — context-aware values for common patterns: email, phone, birthdate, school, course/strand, year level, occupation, religion, household size, consent/eligibility
+- **Smart survey answers** — context-aware values for common patterns: email, phone, birthdate, date, school, course/strand, year level, occupation, religion, household size, consent/eligibility
 - **Auto name generator** — full name patterns, first/middle/last/MI, extension support, and uppercase-aware output
 - **Auto address generator** — country-aware address profiles with region/city/barangay/zip and dependent location fields
 - **Auto country detection** — infers country from form fields and detected location data
 - **Dynamic address modal** — country profiles, cascading region/city/dependent fields, live zip previews, and search-filtered dropdowns
 
-### Weights, Sliders, and Randomization
+### Name Detection Patterns
+
+Automatically detects name fields with various phrasings:
+- "Name of the Participant", "Name of Student", "Name of..."
+- "Complete name", "Full name", "Your name"
+- "First name", "Last name", "Middle name", "Middle Initial"
+- "Extension" (Jr., Sr., II, III, etc.)
+
+> Tip: When extension is detected but disabled, the UI shows a red warning badge prompting you to enable it.
+
+### Date Detection
+
+- **Birthdate** — "Birthday", "Birthdate", "Date of Birth", "DOB"
+- **Generic date** — Detects native Google Forms date pickers and fills with today's date
+
+### Profession / Work Detection
+
+Auto-detects occupation fields and generates realistic professions:
+- "Occupation", "Profession", "Job", "Work", "Current profession/work"
+- Uses an extensive profession database (720+ jobs including Doctor, Engineer, Teacher, etc.)
+
+### Course / Strand Detection
+
+Auto-detects education fields:
+- **Senior High** — "STEM", "HUMSS", "ABM", "GAS", "TVL"
+- **College** — "BS Information Technology", "BS Psychology", "BS Nursing", and 440+ more courses
+
+### Weights, Sliders, and Randomization     
 
 - **Slider-based weighting** — per-option sliders with live percentage readout and total weight summary
 - **Two weighting modes** — Plan (pre-calculated distribution) or Dice (independent random rolls)
@@ -52,6 +78,19 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 - **Stop anytime** — halt submissions mid-run with a single click
 - **Enable/Disable toggle** — hide the UI to use the form normally
 - **High-volume runs** — scale submissions up to 10,000 per run
+
+---
+
+## Data Sources
+
+SpammerZ uses curated local data files for realistic name and profession generation:
+
+| Category | Source | Count |
+|---|---|---|
+| First Names (Filipino) | `Names/FirstName/firstname.md` | 1,144 names |
+| Last Names (Filipino) | `Names/LastName/lastname.md` | 355 surnames |
+| Courses / Strands | `options/courses.md` | 441+ options |
+| Professions | `options/profession.md` | 721 jobs |
 
 ---
 
@@ -151,7 +190,7 @@ Click the **✕ button** in the top-right header to disable. The workspace hides
 
 SpammerZ:
 - Operates entirely in your browser
-- Does NOT send data to any server
+- Does NOT send data to any server (except your form submissions to Google)
 - Does NOT track or log your submissions
 - Does NOT require any permissions beyond what's necessary
 
@@ -190,8 +229,16 @@ spammerz/
 ├── ui/
 │   ├── panel.js               ← UI components
 │   └── panel.css              ← Dark neon styling
+├── Names/
+│   ├── FirstName/
+│   │   └── firstname.md       ← Filipino first names
+│   └── LastName/
+│       └── lastname.md        ← Filipino last names
+├── options/
+│   ├── courses.md             ← Courses/strands list
+│   └── profession.md           ← Professions list
 ├── background/
-│   └── service-worker.js       ← Background persistence
+│   └── service-worker.js      ← Background persistence
 └── icons/
     ├── icon16.png
     ├── icon48.png
@@ -204,7 +251,7 @@ spammerz/
 
 ### UI not appearing?
 1. Make sure the form is public
-2. Check Chrome DevTools console (`F12`) for `[SpammerZ]` errors
+2. Check Chrome DevTools console (`F12`) for errors
 3. Reload the extension in `chrome://extensions/`
 
 ### Submissions not going through?
