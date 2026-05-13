@@ -14,6 +14,16 @@ function renderSpammerZUI(formData, state, updateState) {
     render();
   };
 
+  const captureScrollState = () => ({
+    weights: document.getElementById('spz-questions-list')?.scrollTop || 0,
+  });
+
+  const restoreScrollState = (snapshot) => {
+    if (!snapshot) return;
+    const weightsList = document.getElementById('spz-questions-list');
+    if (weightsList) weightsList.scrollTop = snapshot.weights || 0;
+  };
+
   let container = document.getElementById('spammerz-container');
   if (!container) {
     container = document.createElement('div');
@@ -102,6 +112,7 @@ function renderSpammerZUI(formData, state, updateState) {
   function render() {
     if (!window.htm) return;
     const s = window.spammerzState;
+    const scrollSnapshot = captureScrollState();
 
     // Disabled state - floating toggle
     if (s.enabled === false) {
@@ -148,6 +159,7 @@ function renderSpammerZUI(formData, state, updateState) {
 
     // Render Configure Weights (RIGHT panel)
     renderWeightsPanel(formData, s, updateState);
+    restoreScrollState(scrollSnapshot);
 
     // Render Modal if running/finished
     if (s.running || s.submitted > 0) {
@@ -969,9 +981,21 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
   const isNameField = !!nameBinding;
   const isAddressField = !!addressBinding;
   const isAgeField = !!ageBinding;
-  const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type);
+  const isBirthdateField = smartBinding?.fieldType === 'birthdate';
+  const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type) || isBirthdateField;
   const isConsentField = smartBinding?.fieldType === 'consent';
   const isSmartField = !!smartBinding && !isAgeField && (isTypedQuestion || isConsentField);
+  if (smartBinding?.fieldType === 'birthdate') {
+    console.debug('[SpammerZ Detect]', {
+      context: 'birthdate-weight-panel',
+      questionIndex: qIdx,
+      questionId: question.id,
+      title: question.title,
+      type: question.type,
+      isTypedQuestion,
+      isSmartField,
+    });
+  }
   const nameBindingLabel = nameBinding
     ? getNameBindingDisplayLabel(nameBinding, nameFieldLabels)
     : '';
@@ -980,8 +1004,9 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
   let headerHtml = `<div class="spammerz-config-item-title">${escHtml(question.title)}</div>`;
 
   if (isNameField || isAddressField) {
+    const typeLabel = getTypeName(isBirthdateField ? 'date' : question.type);
     headerHtml += `
-      <div class="spammerz-config-item-type spammerz-type-name">${getTypeName(question.type)}</div>
+      <div class="spammerz-config-item-type spammerz-type-name">${typeLabel}</div>
     `;
     item.innerHTML = headerHtml;
 
@@ -997,7 +1022,8 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
     `;
     item.appendChild(nameDetector);
   } else {
-    headerHtml += `<div class="spammerz-config-item-type">${getTypeName(question.type)}</div>`;
+    const typeLabel = getTypeName(isBirthdateField ? 'date' : question.type);
+    headerHtml += `<div class="spammerz-config-item-type">${typeLabel}</div>`;
     item.innerHTML = headerHtml;
 
     if (isAgeField) {
@@ -1174,7 +1200,15 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (/\b(gender|sex|biological\s*sex)\b/.test(title)) return { ...base, fieldType: /\bsex\b/.test(title) && !/\bgender\b/.test(title) ? 'sex' : 'gender' };
   if (/\b(e-?mail|gmail|email\s*address)\b/.test(title)) return { ...base, fieldType: 'email' };
   if (/\b(contact\s*(number|no)|mobile\s*(number|no)?|phone\s*(number|no)?|cellphone|cell\s*number|telephone)\b/.test(title)) return { ...base, fieldType: 'phone' };
-  if (/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) return { ...base, fieldType: 'birthdate' };
+  if (/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) {
+    console.debug('[SpammerZ Detect]', {
+      context: 'birthdate-detected',
+      questionIndex: idx,
+      questionId: question.id,
+      title: question.title,
+    });
+    return { ...base, fieldType: 'birthdate' };
+  }
   if (/\b(school|university|college|campus|institution)\b/.test(title)) return { ...base, fieldType: 'school' };
   if (/\b(course|program|degree|strand|track)\b/.test(title)) return { ...base, fieldType: 'course' };
   if (/\b(year\s*level|grade\s*level|academic\s*year|section)\b/.test(title)) return { ...base, fieldType: 'yearLevel' };
@@ -2442,7 +2476,7 @@ function createSmartSurveyContext(formData, state, generatedName, generatedAddre
 function resolveSmartSurveyValue(question, cfg, context, idx = 0) {
   const binding = detectSmartSurveyQuestion(question, idx);
   if (!binding) return null;
-  const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type);
+  const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type) || binding.fieldType === 'birthdate';
   if (!isTypedQuestion && binding.fieldType !== 'consent') return null;
   const raw = generateSmartSurveyValue(binding.fieldType, question, cfg, context);
   if (raw == null || raw === '') return null;
@@ -3542,6 +3576,7 @@ function buildLiveFormPayload(formData, state, submissionPlan = new Map(), planI
   normalizeSplitDateTimePayload(payload);
   ensureDomRequiredEntriesFilled(payload, formEl, formData);
   fillEmptyEntryValues(payload, formEl, formData);
+  ensureSmartBirthdatePayload(payload, formData, smartContext);
 
   return payload;
 }
@@ -3864,6 +3899,27 @@ function ensurePayloadField(payload, name, value) {
   if (!allEmpty) return;
   payload.delete(name);
   payload.append(name, value);
+}
+
+function ensureSmartBirthdatePayload(payload, formDataModel, smartContext) {
+  if (!formDataModel?.allQuestions?.length) return;
+
+  formDataModel.allQuestions.forEach((question, idx) => {
+    const binding = detectSmartSurveyQuestion(question, idx);
+    if (!binding || binding.fieldType !== 'birthdate') return;
+    if (!question.id) return;
+
+    const rawValue = generateBirthdateFromAge(smartContext?.age || 18, question.type);
+    const normalized = normalizeDateValue(rawValue);
+
+    ensurePayloadFieldValidated(payload, question.id, normalized.dateValue, isValidDateValue);
+
+    if (question.type === 'date') {
+      ensurePayloadField(payload, `${question.id}_year`, normalized.year);
+      ensurePayloadField(payload, `${question.id}_month`, normalized.month);
+      ensurePayloadField(payload, `${question.id}_day`, normalized.day);
+    }
+  });
 }
 
 function normalizeSplitDateTimePayload(payload) {
