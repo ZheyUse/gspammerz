@@ -182,9 +182,9 @@ Click the **✕ button** in the top-right header to disable. The workspace hides
 
 ![Auto Address Settings](images/Auto_addres_Settings.png)
 
-### Auto Nationality Settings
+### Email Collection Enabled Detection
 
-![Auto Nationality Settings](images/Auto_nationality_settings.png)
+![Email Collection Enabled Detection](images/Auto_nationality_settings.png)
 
 ### Submitting Responses
 
