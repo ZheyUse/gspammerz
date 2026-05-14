@@ -9,6 +9,7 @@
 function renderSpammerZUI(formData, state, updateState) {
   window.spammerzFormData = formData;
   window.spammerzState = state;
+  installQuestionTypeDebug(formData);
   window.spammerzUpdateState = (updates) => {
     window.spammerzState = { ...window.spammerzState, ...updates };
     render();
@@ -216,6 +217,39 @@ function renderSpammerZUI(formData, state, updateState) {
 
 // Export for content script
 window.renderSpammerZUI = renderSpammerZUI;
+
+function installQuestionTypeDebug(formData) {
+  const getRows = () => (window.spammerzFormData?.allQuestions || formData?.allQuestions || []).map((question, idx) => ({
+    index: idx,
+    title: question.title || '',
+    id: question.id || '',
+    rawTypeInt: question.rawTypeInt ?? null,
+    rawTypeName: question.rawTypeName || '',
+    resolvedType: question.type || '',
+    displayType: getQuestionDisplayType(question, question.type || 'unknown'),
+    options: Array.isArray(question.options) ? question.options.join(' | ') : '',
+    scaleMin: question.scaleMin ?? null,
+    scaleMax: question.scaleMax ?? null,
+    scaleMinLabel: question.scaleMinLabel || '',
+    scaleMaxLabel: question.scaleMaxLabel || '',
+    gridColumns: Array.isArray(question.gridColumns) ? question.gridColumns.join(' | ') : '',
+  }));
+
+  window.spammerzQuestionTypeDebug = () => {
+    const rows = getRows();
+    console.table(rows);
+    const json = JSON.stringify(rows, null, 2);
+    console.log('[SpammerZ] Question type debug JSON:', json);
+    return json;
+  };
+
+  const debugKey = formData?.formId || formData?.title || 'unknown-form';
+  if (window.spammerzLastQuestionTypeDebugKey !== debugKey) {
+    window.spammerzLastQuestionTypeDebugKey = debugKey;
+    console.info('[SpammerZ] Type debug ready. Run spammerzQuestionTypeDebug() in the console and paste the returned JSON.');
+    window.spammerzQuestionTypeDebug();
+  }
+}
 
 /**
  * Render the LEFT panel - Submission Settings + General Settings
@@ -1153,7 +1187,7 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
   const isExtensionDisabled = nameBinding?.fieldType === 'extension' && !cfg?.includeExtension;
 
   if (isNameField || isAddressField) {
-    const typeLabel = getTypeName(isBirthdateField ? 'date' : question.type);
+    const typeLabel = getQuestionDisplayType(question, isBirthdateField ? 'date' : question.type);
     headerHtml += `
       <div class="spammerz-config-item-type spammerz-type-name">${typeLabel}</div>
     `;
@@ -1187,7 +1221,7 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
     }
     item.appendChild(nameDetector);
   } else {
-    const typeLabel = getTypeName(isBirthdateField ? 'date' : question.type);
+    const typeLabel = getQuestionDisplayType(question, isBirthdateField ? 'date' : question.type);
     headerHtml += `<div class="spammerz-config-item-type">${typeLabel}</div>`;
     item.innerHTML = headerHtml;
 
@@ -1318,6 +1352,20 @@ function getNamePatternExample(binding) {
   }, binding);
 }
 
+function getQuestionDisplayType(question, fallbackType) {
+  if (isRatingQuestion(question)) return 'RATING';
+  return getTypeName(fallbackType);
+}
+
+function isRatingQuestion(question) {
+  if (!question || question.type !== 'linear_scale') return false;
+  if (question.rawTypeInt === 18) return true;
+  const title = String(question.title || '').toLowerCase();
+  return /\b(rating|rate|score|satisfaction|satisfied|likert|stars?)\b/.test(title)
+    && Number.isFinite(question.scaleMax)
+    && question.scaleMax <= 5;
+}
+
 function getConfigurableOptionCount(question, cfg) {
   if (!question) return cfg?.values?.length || 0;
   if (question.type === 'linear_scale') {
@@ -1362,6 +1410,7 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (!question) return null;
   const title = normalizeNameTitle(question.title || '');
   const base = { questionIndex: idx, questionId: question.id, title: question.title };
+  if (!isSmartTextQuestion(question) && question.type !== 'date') return null;
 
   // Check for native Google Forms date picker type
   if (question.type === 'date' && !/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) {
@@ -1526,6 +1575,8 @@ function detectNameQuestions(questions) {
       title: q.title,
       uppercase: shouldUppercaseNameOutput(rawTitle),
     };
+    if (!isSmartTextQuestion(q)) return;
+    if (isSchoolNameTitle(title)) return;
 
     const pattern = detectNamePattern(rawTitle);
     if (pattern) {
@@ -1539,7 +1590,7 @@ function detectNameQuestions(questions) {
       detected.push({ ...base, fieldType: 'middlename' });
     } else if (/\blast\s*name\b/.test(title) || /\bsurnames?\b/.test(title) || /\bfamily\s*name\b/.test(title) || /\bmaiden\s*name\b/.test(title)) {
       detected.push({ ...base, fieldType: 'lastname' });
-    } else if (/\bfull\s*name\b|\bcomplete\s*name\b|\bname\s+of\b|participant\s+name|\byour\s+name\b/.test(title) || title === 'name' || title.match(/^name\s*[\(*)].*$/) || isRelationshipNameTitle(title)) {
+    } else if (isPersonNameTitle(title)) {
       detected.push({ ...base, fieldType: 'fullname' });
     } else if (/\bm\.?i\.?\b/.test(title) || /\bmiddle\s*initial\b/.test(title)) {
       detected.push({ ...base, fieldType: 'mi' });
@@ -1622,7 +1673,7 @@ function detectAddressQuestions(questions) {
       detected.push({ ...base, fieldType: 'state' });
     } else if (/\b(street|house|lot|block|blk|street\s*number|street\s*name)\b/.test(title)) {
       detected.push({ ...base, fieldType: 'addressLine1' });
-    } else if (isFullAddressTitle(title)) {
+    } else if (isSmartTextQuestion(q) && isFullAddressTitle(title)) {
       detected.push({ ...base, fieldType: 'fullAddress' });
     }
   });
@@ -1633,6 +1684,28 @@ function isFullAddressTitle(title) {
   return /\b(address|adress|location|residence|residency|residential|domicile|dwelling|home|place)\b/.test(title)
     || /\b(current|present|permanent|temporary|mailing|billing|shipping|delivery|home|residential)\s+(address|adress|location|residence|place)\b/.test(title)
     || /\b(place\s+of\s+(residence|residency|living)|where\s+(do\s+(you|they)\s+)?(currently\s+)?(live|reside|lived|residing)|where\s+are\s+you\s+located|here\s+do\s+you\s+live)\b/.test(title);
+}
+
+function isSmartTextQuestion(question) {
+  if (!question) return false;
+  return ['short_text', 'paragraph'].includes(question.type);
+}
+
+function isSchoolNameTitle(title) {
+  return /\b(school|university|college|campus|institution)\b/.test(title)
+    || /\bname\s+of\s+(school|university|college|campus|institution)\b/.test(title)
+    || /\b(school|university|college|campus|institution)\s+name\b/.test(title);
+}
+
+function isPersonNameTitle(title) {
+  if (/\b(first|last|middle|full|complete)\s*name\b/.test(title)) return true;
+  if (/\byour\s+name\b|\bparticipant\s+name\b/.test(title)) return true;
+  if (title === 'name' || /^name\s*[\(*)].*$/.test(title)) return true;
+  if (isRelationshipNameTitle(title)) return true;
+  if (/\bname\s+of\b/.test(title) && !/\b(university|school|college|institution|company|organization|organisation|department|office|agency|program|course|section|club|group|event|project|study|survey)\b/.test(title)) {
+    return true;
+  }
+  return false;
 }
 
 function getAddressFieldLabel(fieldType) {
@@ -3212,8 +3285,7 @@ function createGoogleFormQuestion(question, qIdx) {
       break;
 
     case 'linear_scale': {
-      const isRating = /rating/i.test(question.title || '') && (question.scaleMax || 0) <= 5;
-      if (isRating) {
+      if (isRatingQuestion(question)) {
         inputHtml = createRatingQuestionHtml(question, qIdx);
         break;
       }
@@ -5016,6 +5088,7 @@ function getTypeName(type) {
     date: 'DATE',
     time: 'TIME',
     grid: 'GRID',
+    checkbox_grid: 'GRID',
     unknown: '???',
   };
   return names[type] || type.toUpperCase();

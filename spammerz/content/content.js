@@ -409,7 +409,7 @@ function parseQuestion(item, pageIndex) {
   const entry = item[4][0];
   const entryId = `entry.${entry[0]}`;
   const typeInt = item[3] ?? 0;
-  const type = TYPE_MAP[typeInt] ?? 'unknown';
+  let type = TYPE_MAP[typeInt] ?? 'unknown';
   const required = entry[2] === 1;
   const title = item[1] ?? 'Question';
   const description = item[2] ?? '';
@@ -419,6 +419,11 @@ function parseQuestion(item, pageIndex) {
     for (const opt of entry[1]) {
       if (opt[0]) options.push(opt[0]);
     }
+  }
+
+  const scaleGuess = inferLinearScaleFallback(type, title, entry, options);
+  if (scaleGuess) {
+    type = 'linear_scale';
   }
 
   const gridColumns = [];
@@ -433,6 +438,8 @@ function parseQuestion(item, pageIndex) {
     title,
     description,
     type,
+    rawTypeInt: typeInt,
+    rawTypeName: TYPE_MAP[typeInt] || 'unknown',
     required,
     options,
     pageIndex,
@@ -444,6 +451,9 @@ function parseQuestion(item, pageIndex) {
     question.scaleMax = bounds[1] ?? 5;
     question.scaleMinLabel = bounds[2] ?? '';
     question.scaleMaxLabel = bounds[3] ?? '';
+  } else if (scaleGuess) {
+    question.scaleMin = scaleGuess.scaleMin;
+    question.scaleMax = scaleGuess.scaleMax;
   }
 
   if (gridColumns.length) {
@@ -451,6 +461,27 @@ function parseQuestion(item, pageIndex) {
   }
 
   return question;
+}
+
+function inferLinearScaleFallback(currentType, title, entry, options) {
+  if (currentType === 'linear_scale') return null;
+  if (!Array.isArray(options) || options.length < 2) return null;
+
+  const normalizedTitle = String(title || '').toLowerCase();
+  const ratingWords = /\b(rating|rate|score|satisfaction|satisfied|likelihood|likely|quality|performance|experience|agree|agreement|likert|scale|stars?)\b/.test(normalizedTitle);
+  const numericOptions = options.every(opt => /^\d+$/.test(String(opt).trim()));
+  const consecutiveNumbers = numericOptions && options.every((opt, idx) => Number(opt) === Number(options[0]) + idx);
+  const bounds = Array.isArray(entry?.[1]?.[0]?.[3]) ? entry[1][0][3] : null;
+
+  if (!numericOptions) return null;
+  if (!ratingWords && !bounds && !consecutiveNumbers) return null;
+
+  const min = Number(options[0]);
+  const max = Number(options[options.length - 1]);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (max - min + 1 !== options.length) return null;
+
+  return { scaleMin: min, scaleMax: max };
 }
 
 const TYPE_MAP = {
@@ -463,6 +494,7 @@ const TYPE_MAP = {
   7: 'date',
   8: 'time',
   9: 'grid',
+  18: 'rating',
   27: 'checkbox_grid',
   73: 'checkbox_grid',
 };
