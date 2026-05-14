@@ -27,14 +27,16 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 
 ### Smart Detection + Autofill
 
-- **Smart detection engine** — auto-detects name, address, and survey intent fields
+- **Smart detection engine** — auto-detects name, address, nationality, and survey intent fields
 - **Gender / sex detection** — detects gender/sex questions and lets you control the answer pool
 - **Age detection** — auto-fills age fields with configurable min/max range
 - **Smart survey answers** — context-aware values for common patterns: email, phone, birthdate, date, school, course/strand, year level, occupation, religion, household size, consent/eligibility
 - **Auto name generator** — full name patterns, first/middle/last/MI, extension support, and uppercase-aware output
 - **Auto address generator** — country-aware address profiles with region/city/barangay/zip and dependent location fields
+- **Auto nationality generator** — detects nationality, citizenship, ethnicity, and ancestry fields with pool-based generation (200+ nationalities)
 - **Auto country detection** — infers country from form fields and detected location data
 - **Dynamic address modal** — country profiles, cascading region/city/dependent fields, live zip previews, and search-filtered dropdowns
+- **Email collection detection** — warns when forms have "Collect email addresses" enabled and blocks submissions to prevent 400 errors
 
 ### Name Detection Patterns
 
@@ -180,6 +182,10 @@ Click the **✕ button** in the top-right header to disable. The workspace hides
 
 ![Auto Address Settings](images/Auto_addres_Settings.png)
 
+### Auto Nationality Settings
+
+![Auto Nationality Settings](images/Auto_nationality_settings.png)
+
 ### Submitting Responses
 
 ![Submitting Responses](images/Submitting_responses.png)
@@ -206,6 +212,18 @@ Your submissions go directly to Google Forms' servers, just like a normal form s
 | reCAPTCHA | Detected forms may block submissions |
 | No-cors responses | Cannot confirm 100% if submission succeeded |
 | Rate limiting | Google may throttle rapid submissions |
+| Email collection enabled | Forms with "Collect email addresses" will return 400 errors — SpammerZ detects and warns about this |
+
+### Resolving "Email Collection Enabled" Errors
+
+When a form has **"Collect email addresses"** enabled, Google requires authentication and submissions will fail with a 400 error. SpammerZ now:
+
+1. **Detects** when email collection is enabled on form load
+2. **Shows a blocking modal** explaining the issue
+3. **Blocks the Start button** while email collection is active
+4. **Shows a warning banner** during submissions if failures occur
+
+**To fix**: The form owner must disable "Collect email addresses" in Google Forms → Settings → General, or change it to "Do not collect" or "Responder Input".
 
 ---
 

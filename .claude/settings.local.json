@@ -12,7 +12,8 @@
       "PowerShell(mkdir *)",
       "Bash(node --check \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\content\\\\content.js\")",
       "Bash(node --check \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\ui\\\\panel.js\")",
-      "WebFetch(domain:docs.google.com)"
+      "WebFetch(domain:docs.google.com)",
+      "Bash(Remove-Item *)"
     ]
   }
 }

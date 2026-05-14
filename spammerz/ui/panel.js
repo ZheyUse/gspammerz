@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @fileoverview SpammerZ - UI Components
  * 3-Panel Layout: Submission Settings | Google Form | Configure Weights
  */
@@ -31,7 +31,7 @@ function renderSpammerZUI(formData, state, updateState) {
     document.body.appendChild(container);
   }
 
-  const version = (window.chrome?.runtime?.getManifest?.().version) || '1.0.1';
+  const version = (window.chrome?.runtime?.getManifest?.().version) || '1.0.4';
 
   // Load names from packaged markdown files if not already loaded
   if (window.spammerzState.autoNameConfig) {
@@ -115,6 +115,29 @@ function renderSpammerZUI(formData, state, updateState) {
     }
   }
 
+  // Initialize Nationality Config
+  if (!window.spammerzState.autoNationalityConfig) {
+    const detectedNationalityFields = detectNationalityQuestions(formData.allQuestions);
+    window.spammerzState.autoNationalityConfig = {
+      ...createDefaultNationalityConfig(),
+      fields: detectedNationalityFields,
+    };
+    if (typeof updateState === 'function') {
+      updateState({ autoNationalityConfig: window.spammerzState.autoNationalityConfig });
+    }
+  } else if (!window.spammerzState.autoNationalityConfig.locationChecked) {
+    // Re-detect fields on reload
+    const detectedNationalityFields = detectNationalityQuestions(formData.allQuestions);
+    window.spammerzState.autoNationalityConfig = {
+      ...window.spammerzState.autoNationalityConfig,
+      fields: detectedNationalityFields,
+      locationChecked: true,
+    };
+    if (typeof updateState === 'function') {
+      updateState({ autoNationalityConfig: window.spammerzState.autoNationalityConfig });
+    }
+  }
+
   function render() {
     if (!window.htm) return;
     const s = window.spammerzState;
@@ -156,6 +179,18 @@ function renderSpammerZUI(formData, state, updateState) {
         </div>
       </div>
     `;
+
+    // Check for email collection feature and show blocking modal
+    const emailCollectionEnabled = window.spammerz_emailCollectionChecked ? window.spammerz_emailCollectionEnabled : (() => {
+      const enabled = detectEmailCollectionEnabled();
+      window.spammerz_emailCollectionEnabled = enabled;
+      window.spammerz_emailCollectionChecked = true;
+      return enabled;
+    })();
+
+    if (emailCollectionEnabled) {
+      showEmailCollectionModal();
+    }
 
     // Render Submission Settings (LEFT panel)
     renderSubmissionPanel(s, updateState);
@@ -303,6 +338,28 @@ function renderSubmissionPanel(s, updateState) {
           <div class="spammerz-auto-name-info">${escHtml(addressCountry)}${autoAddressEnabled && detectedAddressCount > 0 ? ` - ${detectedAddressCount} field(s) detected` : ''}</div>
           <button class="spammerz-btn-outline spammerz-auto-name-btn" id="spz-address-settings-btn">
             ${autoAddressEnabled ? 'Configure' : 'Configure Auto Address'}
+          </button>
+        </div>
+
+        <div class="spammerz-auto-name-section spammerz-auto-nationality-section">
+          <div class="spammerz-auto-name-header">
+            <span class="spammerz-auto-name-title">Auto Nationality</span>
+            <span class="spammerz-auto-name-status ${s.autoNationalityConfig?.enabled ? 'active' : ''}">
+              ${s.autoNationalityConfig?.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+          <div class="spammerz-auto-name-toggle">
+            <label class="spammerz-toggle">
+              <input type="checkbox" id="spz-auto-nationality-toggle" ${s.autoNationalityConfig?.enabled ? 'checked' : ''}>
+              <span class="spammerz-toggle-slider"></span>
+              <span>Enable Auto Nationality</span>
+            </label>
+          </div>
+          <div class="spammerz-auto-name-info">
+            ${(s.autoNationalityConfig?.enabled && s.autoNationalityConfig?.fields?.length > 0) ? `${s.autoNationalityConfig.fields.length} field(s) detected` : 'Detects nationality, citizenship, and related fields'}
+          </div>
+          <button class="spammerz-btn-outline spammerz-auto-name-btn" id="spz-nationality-settings-btn">
+            ${s.autoNationalityConfig?.enabled ? 'Configure' : 'Configure Auto Nationality'}
           </button>
         </div>
       </div>
@@ -646,6 +703,99 @@ function renderAutoAddressModal(s) {
   attachAutoAddressModalListeners(formData, updateState);
   enhanceAddressSearchInputs();
   hydrateAddressModalOptions(countryCode);
+}
+
+/**
+ * Render Nationality Configuration Modal
+ */
+function renderAutoNationalityModal(s) {
+  const container = document.getElementById('spz-modal-container');
+  if (!container) return;
+
+  const config = window.spammerzState.autoNationalityConfig || createDefaultNationalityConfig();
+  const detectedFields = window.spammerzFormData ? detectNationalityQuestions(window.spammerzFormData.allQuestions) : [];
+  const detectedSummary = detectedFields.length
+    ? detectedFields.map(field => getSmartSurveyFieldLabel(field.fieldType)).join(', ')
+    : 'None detected';
+  const pools = [
+    { value: 'all', label: 'All Countries' },
+    { value: 'pinoy', label: 'Filipino (Pinoy)' },
+    { value: 'asian', label: 'Asian' },
+    { value: 'european', label: 'European' },
+    { value: 'american', label: 'American / Latin' },
+    { value: 'african', label: 'African' },
+    { value: 'oceanian', label: 'Oceanian' },
+  ];
+
+  container.innerHTML = `
+    <div class="spammerz-modal spammerz-modal-name">
+      <div class="spammerz-modal-content spammerz-modal-content-address">
+        <div class="spammerz-modal-header">
+          <h2>Auto Nationality Settings</h2>
+          <button class="spammerz-modal-close" id="spz-nationality-modal-close">&times;</button>
+        </div>
+        <div class="spammerz-address-modal-body">
+          <div class="spammerz-address-detected">
+            <span>Form Fields Detected</span>
+            <strong>${escHtml(detectedSummary)}</strong>
+          </div>
+          <div class="spammerz-settings-row">
+            <label>Nationality Pool</label>
+            <select id="spz-nationality-pool" class="spammerz-address-select">
+              ${pools.map(p => `<option value="${escHtml(p.value)}" ${config.pool === p.value ? 'selected' : ''}>${escHtml(p.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="spammerz-settings-row">
+            <label>Specific Nationality (Optional)</label>
+            <select id="spz-nationality-select" class="spammerz-address-select">
+              <option value="random">Random from Pool</option>
+              ${NATIONALITIES.slice(0, 50).map(n => `<option value="${escHtml(n)}" ${config.nationality === n ? 'selected' : ''}>${escHtml(n)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="spammerz-settings-row">
+            <label class="spammerz-toggle">
+              <input type="checkbox" id="spz-nationality-prefer-local" ${config.preferLocal ? 'checked' : ''}>
+              <span class="spammerz-toggle-slider"></span>
+              <span>Match Local Nationality (based on address country)</span>
+            </label>
+          </div>
+          <div class="spammerz-address-note">
+            <strong>Detected Fields:</strong> Nationality, Citizenship, Ethnicity, and related fields are automatically detected from form questions.
+          </div>
+        </div>
+        <div class="spammerz-modal-actions-name">
+          <button class="spammerz-btn-outline" id="spz-nationality-cancel">Cancel</button>
+          <button class="spammerz-btn-primary" id="spz-nationality-save">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Attach listeners
+  document.getElementById('spz-nationality-modal-close')?.addEventListener('click', () => {
+    document.getElementById('spz-modal-container').innerHTML = '';
+  });
+  document.getElementById('spz-nationality-cancel')?.addEventListener('click', () => {
+    document.getElementById('spz-modal-container').innerHTML = '';
+  });
+  document.getElementById('spz-nationality-save')?.addEventListener('click', () => {
+    const pool = document.getElementById('spz-nationality-pool')?.value || 'all';
+    const nationality = document.getElementById('spz-nationality-select')?.value || 'random';
+    const preferLocal = document.getElementById('spz-nationality-prefer-local')?.checked || false;
+    const detectedFields = detectNationalityQuestions(window.spammerzFormData?.allQuestions || []);
+    const prev = window.spammerzState.autoNationalityConfig || createDefaultNationalityConfig();
+    const next = {
+      ...prev,
+      enabled: prev.enabled !== false,
+      fields: detectedFields,
+      pool,
+      nationality,
+      preferLocal,
+    };
+    updateState({ autoNationalityConfig: next });
+    document.getElementById('spz-modal-container').innerHTML = '';
+    window.renderSpammerZUI(formData, window.spammerzState, updateState);
+  });
 }
 
 function attachAutoAddressModalListeners(formData, updateState) {
@@ -1231,10 +1381,13 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (/\b(school|university|college|campus|institution)\b/.test(title)) return { ...base, fieldType: 'school' };
   if (/\b(course|program|degree|strand|track)\b/.test(title)) return { ...base, fieldType: 'course' };
   if (/\b(year\s*level|grade\s*level|academic\s*year|section)\b/.test(title)) return { ...base, fieldType: 'yearLevel' };
-  if (/\b(occupation|profession|job|title|work|current\s+(profession|work|job)|employment\s*status|work\s*status)\b/.test(title)) return { ...base, fieldType: 'occupation' };
+  if (/\b(occupation|profession|job|title|work|position|role|current\s+(profession|work|job|position)|employment\s*status|work\s*status)\b/.test(title)) return { ...base, fieldType: 'occupation' };
   if (/\breligion\b/.test(title)) return { ...base, fieldType: 'religion' };
-  if (/\b(household\s*size|number\s*of\s*(family|household)\s*members|family\s*members)\b/.test(title)) return { ...base, fieldType: 'householdSize' };
-  if (/\b(i\s*agree|consent|data\s*privacy|terms|privacy\s*policy|agree\s*to\s*participate)\b/.test(title)) return { ...base, fieldType: 'consent' };
+  if (/\b(household\s*size|number\s+of\s+(family|household)\s+members|family\s+members)\b/.test(title)) return { ...base, fieldType: 'householdSize' };
+  if (/\b(i\s+agree|consent|data\s+privacy|terms|privacy\s+policy|agree\s+to\s+participate)\b/.test(title)) return { ...base, fieldType: 'consent' };
+  if (/\b(nationality|citizenship|citizen|country\s+of\s+(birth|citizenship|origin)|what\s+is\s+your\s+(nationality|citizenship))\b/i.test(title)) return { ...base, fieldType: 'nationality' };
+  if (/\b(ethnic\s*(origin|ity)|ethnicity|tribe|race)\b/i.test(title)) return { ...base, fieldType: 'ethnicity' };
+  if (/\b(ancestry|ancestral|ancestors|origin\s*(country)?)\b/i.test(title)) return { ...base, fieldType: 'ancestry' };
   return null;
 }
 
@@ -1308,6 +1461,9 @@ function getSmartSurveyFieldLabel(fieldType) {
     religion: 'Religion',
     householdSize: 'Household Size',
     consent: 'Consent / Eligibility',
+    nationality: 'Nationality',
+    ethnicity: 'Ethnicity',
+    ancestry: 'Ancestry / Origin',
   };
   return labels[fieldType] || fieldType;
 }
@@ -1383,7 +1539,7 @@ function detectNameQuestions(questions) {
       detected.push({ ...base, fieldType: 'middlename' });
     } else if (/\blast\s*name\b/.test(title) || /\bsurnames?\b/.test(title) || /\bfamily\s*name\b/.test(title) || /\bmaiden\s*name\b/.test(title)) {
       detected.push({ ...base, fieldType: 'lastname' });
-    } else if (/\bfull\s*name\b|\bcomplete\s*name\b|\bname\s+of\b|participant\s+name|\byour\s+name\b/.test(title) || title === 'name' || title.match(/^name\s*[\*]*$/) || isRelationshipNameTitle(title)) {
+    } else if (/\bfull\s*name\b|\bcomplete\s*name\b|\bname\s+of\b|participant\s+name|\byour\s+name\b/.test(title) || title === 'name' || title.match(/^name\s*[\(*)].*$/) || isRelationshipNameTitle(title)) {
       detected.push({ ...base, fieldType: 'fullname' });
     } else if (/\bm\.?i\.?\b/.test(title) || /\bmiddle\s*initial\b/.test(title)) {
       detected.push({ ...base, fieldType: 'mi' });
@@ -1476,7 +1632,7 @@ function detectAddressQuestions(questions) {
 function isFullAddressTitle(title) {
   return /\b(address|adress|location|residence|residency|residential|domicile|dwelling|home|place)\b/.test(title)
     || /\b(current|present|permanent|temporary|mailing|billing|shipping|delivery|home|residential)\s+(address|adress|location|residence|place)\b/.test(title)
-    || /\b(place\s+of\s+(residence|residency|living)|where\s+do\s+you\s+live|where\s+are\s+you\s+located)\b/.test(title);
+    || /\b(place\s+of\s+(residence|residency|living)|where\s+(do\s+(you|they)\s+)?(currently\s+)?(live|reside|lived|residing)|where\s+are\s+you\s+located|here\s+do\s+you\s+live)\b/.test(title);
 }
 
 function getAddressFieldLabel(fieldType) {
@@ -2327,6 +2483,148 @@ function inferAddressCountryFromFields(fields) {
   return null;
 }
 
+// ============ Nationality Smart Detection ============
+
+const NATIONALITIES = [
+  'Afghan', 'Albanian', 'Algerian', 'American', 'Andorran', 'Angolan', 'Antiguans', 'Argentine', 'Armenian',
+  'Australian', 'Austrian', 'Azerbaijani', 'Bahamian', 'Bahraini', 'Bangladeshi', 'Barbadian', 'Belarusian',
+  'Belgian', 'Belizean', 'Beninese', 'Bhutanese', 'Bolivian', 'Bosnian', 'Botswanan', 'Brazilian', 'British',
+  'Bruneian', 'Bulgarian', 'Burkinabe', 'Burmese', 'Burundian', 'Cambodian', 'Cameroonian', 'Canadian', 'Cape Verdean',
+  'Central African', 'Chadian', 'Chilean', 'Chinese', 'Colombian', 'Comoran', 'Congolese', 'Costa Rican',
+  'Croatian', 'Cuban', 'Cypriot', 'Czech', 'Danish', 'Djibouti', 'Dominican', 'Dominican', 'Dutch', 'East Timorese',
+  'Ecuadorian', 'Egyptian', 'Emirati', 'Equatorial Guinean', 'Eritrean', 'Estonian', 'Ethiopian', 'Fijian', 'Filipino',
+  'Finnish', 'French', 'Gabonese', 'Gambian', 'Georgian', 'German', 'Ghanaian', 'Greek', 'Grenadian', 'Guatemalan',
+  'Guinea-Bissau', 'Guinean', 'Guyanese', 'Haitian', 'Herzegovinian', 'Honduran', 'Hungarian', 'Icelandic', 'Indian',
+  'Indonesian', 'Iranian', 'Iraqi', 'Irish', 'Israeli', 'Italian', 'Ivorian', 'Jamaican', 'Japanese', 'Jordanian',
+  'Kazakh', 'Kenyan', 'Kittian', 'Kuwaiti', 'Kyrgyz', 'Lao', 'Latvian', 'Lebanese', 'Lesotho', 'Liberian',
+  'Libyan', 'Liechtenstein', 'Lithuanian', 'Luxembourg', 'Macedonian', 'Malagasy', 'Malawian', 'Malaysian', 'Maldivian',
+  'Mali', 'Maltese', 'Marshallese', 'Mauritanian', 'Mauritian', 'Mexican', 'Micronesian', 'Moldovan', 'Monacan',
+  'Mongolian', 'Montenegrin', 'Moroccan', 'Mozambican', 'Namibian', 'Nauruan', 'Nepalese', 'New Zealander',
+  'Nicaraguan', 'Niger', 'Nigerian', 'North Korean', 'Norwegian', 'Omani', 'Pakistani', 'Palauan', 'Panamanian',
+  'Papua New Guinean', 'Paraguayan', 'Peruvian', 'Polish', 'Portuguese', 'Qatari', 'Romanian', 'Russian',
+  'Rwandan', 'Saint Lucian', 'Salvadoran', 'Samoan', 'San Marinese', 'Sao Tomean', 'Saudi', 'Senegalese',
+  'Serbian', 'Seychellois', 'Sierra Leonean', 'Singaporean', 'Slovak', 'Slovenian', 'Solomon Islander',
+  'Somali', 'South African', 'South Korean', 'South Sudanese', 'Spanish', 'Sri Lankan', 'Sudanese', 'Surinamer',
+  'Swazi', 'Swedish', 'Swiss', 'Syrian', 'Taiwanese', 'Tajik', 'Tanzanian', 'Thai', 'Togolese', 'Tongan',
+  'Trinidadian', 'Tunisian', 'Turkish', 'Turkmen', 'Tuvaluan', 'Ugandan', 'Ukrainian', 'Uruguayan', 'Uzbek',
+  'Venezuelan', 'Vietnamese', 'Yemeni', 'Zambian', 'Zimbabwean',
+];
+
+// Additional variations with "ese", "ian", "ish" suffixes common in forms
+const NATIONALITIES_WITH_ESE = ['Chinese', 'Japanese', 'Portuguese', 'Vietnamese'];
+const NATIONALITIES_WITH_IAN = NATIONALITIES.filter(n => n.endsWith('ian') && !n.endsWith('anese'));
+const NATIONALITIES_WITH_ISE = ['British', 'Irish'];
+const NATIONALITIES_WITH_ISH = ['British', 'Irish', 'Swedish', 'Polish', 'Spanish', 'Turkish', 'Finnish'];
+
+function detectNationalityQuestions(questions) {
+  const detected = [];
+  questions.forEach((q, idx) => {
+    const title = normalizeNameTitle(q.title || '');
+    const base = { questionIndex: idx, questionId: q.id, title: q.title };
+    if (/\b(nationality|citizenship|citizen|country\s+of\s+(birth|citizenship|origin)|what\s+is\s+your\s+(nationality|citizenship))\b/i.test(title)) {
+      detected.push({ ...base, fieldType: 'nationality' });
+    } else if (/\b(ethnic\s*(origin|ity)|ethnicity|tribe|race)\b/i.test(title)) {
+      detected.push({ ...base, fieldType: 'ethnicity' });
+    } else if (/\b(ancestry|ancestral|ancestors|origin\s*(country)?)\b/i.test(title)) {
+      detected.push({ ...base, fieldType: 'ancestry' });
+    }
+  });
+  return detected;
+}
+
+function createDefaultNationalityConfig() {
+  return {
+    enabled: true,
+    fields: [],
+    nationality: 'random', // 'random' or a specific nationality
+    pool: 'all', // 'all', 'asian', 'european', 'american', 'african', 'oceanian'
+    preferLocal: false, // Prefer the local nationality based on address config
+    locationChecked: false,
+  };
+}
+
+window.createDefaultNationalityConfig = createDefaultNationalityConfig;
+
+function getNationalityPool(poolName) {
+  const pools = {
+    all: NATIONALITIES,
+    asian: ['Afghan', 'Bangladeshi', 'Bhutanese', 'Bruneian', 'Cambodian', 'Chinese', 'Indian', 'Indonesian', 'Iranian', 'Iraqi', 'Japanese', 'Jordanian', 'Kazakh', 'Korean', 'Kuwaiti', 'Kyrgyz', 'Lao', 'Lebanese', 'Malaysian', 'Maldivian', 'Mongolian', 'Myanmar', 'Nepalese', 'Omani', 'Pakistani', 'Palestinian', 'Philippino', 'Qatari', 'Saudi', 'Singaporean', 'Sri Lankan', 'Syrian', 'Taiwanese', 'Tajik', 'Thai', 'Turkish', 'UAE', 'Uzbek', 'Vietnamese', 'Yemeni'],
+    european: ['Albanian', 'Andorran', 'Austrian', 'Belgian', 'Bulgarian', 'Croatian', 'Cypriot', 'Czech', 'Danish', 'Dutch', 'Estonian', 'Finnish', 'French', 'German', 'Greek', 'Hungarian', 'Icelandic', 'Irish', 'Italian', 'Latvian', 'Liechtenstein', 'Lithuanian', 'Luxembourg', 'Maltese', 'Monacan', 'Norwegian', 'Polish', 'Portuguese', 'Romanian', 'Russian', 'San Marinese', 'Serbian', 'Slovak', 'Slovenian', 'Spanish', 'Swedish', 'Swiss', 'Ukrainian', 'British'],
+    american: ['American', 'Argentine', 'Bahamian', 'Barbadian', 'Belgian', 'Belizean', 'Bolivian', 'Brazilian', 'Canadian', 'Chilean', 'Colombian', 'Costa Rican', 'Cuban', 'Dominican', 'Ecuadorian', 'Salvadoran', 'Grenadian', 'Guatemalan', 'Guyanese', 'Haitian', 'Honduran', 'Jamaican', 'Mexican', 'Nicaraguan', 'Panamanian', 'Paraguayan', 'Peruvian', 'Puerto Rican', 'Saint Lucian', 'Surinamer', 'Trinidadian', 'Uruguayan', 'Venezuelan'],
+    african: ['Algerian', 'Angolan', 'Beninese', 'Botswanan', 'Burkinabe', 'Burundian', 'Cameroonian', 'Central African', 'Chadian', 'Congolese', 'Djibouti', 'Egyptian', 'Emirati', 'Eritrean', 'Ethiopian', 'Gabonese', 'Ghanaian', 'Guinean', 'Ivorian', 'Kenyan', 'Lesotho', 'Liberian', 'Libyan', 'Madagascar', 'Malawian', 'Mali', 'Mauritanian', 'Mauritian', 'Moroccan', 'Mozambican', 'Namibian', 'Niger', 'Nigerian', 'Rwandan', 'Senegalese', 'Sierra Leonean', 'Somali', 'South African', 'Sudanese', 'Tanzanian', 'Togolese', 'Tunisian', 'Ugandan', 'Zambian', 'Zimbabwean'],
+    oceanian: ['Australian', 'Fijian', 'Kiribati', 'Marshallese', 'Micronesian', 'Nauruan', 'New Zealander', 'Palauan', 'Papua New Guinean', 'Samoan', 'Solomon Islander', 'Tongan', 'Tuvaluan', 'Vanuatu'],
+    pinoy: ['Filipino'], // Filipino-specific option for Philippine forms
+  };
+  return pools[poolName] || pools.all;
+}
+
+function generateNationality(config = createDefaultNationalityConfig()) {
+  // If address config suggests a country, prefer that nationality
+  const addressConfig = window.spammerzState?.autoAddressConfig;
+  const addressCountry = addressConfig?.countryCode;
+
+  let resultNationality = null;
+
+  // Check if address config can infer nationality
+  if (config.preferLocal && addressCountry) {
+    const countryToNationality = {
+      PH: 'Filipino',
+      JP: 'Japanese',
+      CN: 'Chinese',
+      KR: 'Korean',
+      IN: 'Indian',
+      ID: 'Indonesian',
+      MY: 'Malaysian',
+      TH: 'Thai',
+      VN: 'Vietnamese',
+      SG: 'Singaporean',
+      US: 'American',
+      GB: 'British',
+      DE: 'German',
+      FR: 'French',
+      IT: 'Italian',
+      ES: 'Spanish',
+      BR: 'Brazilian',
+      MX: 'Mexican',
+      GB: 'British',
+    };
+    const inferred = countryToNationality[addressCountry];
+    if (inferred && NATIONALITIES.includes(inferred)) {
+      resultNationality = inferred;
+    }
+  }
+
+  // If specific nationality is configured
+  if (!resultNationality && config.nationality && config.nationality !== 'random') {
+    if (NATIONALITIES.includes(config.nationality)) {
+      resultNationality = config.nationality;
+    }
+  }
+
+  // Pick from pool
+  if (!resultNationality) {
+    const pool = getNationalityPool(config.pool || 'all');
+    // Filter to ensure nationality is valid
+    const validPool = pool.filter(n => NATIONALITIES.includes(n));
+    resultNationality = pickRandom(validPool.length ? validPool : NATIONALITIES);
+  }
+
+  return {
+    nationality: resultNationality,
+    ethnicity: null, // Could be extended
+    ancestry: null,
+  };
+}
+
+function formatGeneratedNationalityForField(binding, generated) {
+  if (!generated) return '';
+  const { fieldType } = binding;
+  if (fieldType === 'nationality') {
+    return generated.nationality || '';
+  }
+  return generated[fieldType] || '';
+}
+
 /**
  * Render the Google Form replica sandbox (MIDDLE panel)
  */
@@ -2477,11 +2775,14 @@ function createSmartSurveyContext(formData, state, generatedName, generatedAddre
   const ageConfig = ageQuestionIndex >= 0 ? state.answers[ageQuestionIndex]?.ageConfig : null;
   const age = Number(generateAgeValue(ageConfig || { min: 18, max: 30 }));
   const schoolName = generateSchoolName(generatedAddress);
+  const nationalityConfig = state.autoNationalityConfig || createDefaultNationalityConfig();
+  const nationality = nationalityConfig.enabled ? generateNationality(nationalityConfig) : null;
   return {
     generatedName: name,
     generatedAddress,
     schoolName,
     age,
+    nationality,
     countryCode: state.autoAddressConfig?.countryCode || generatedAddress?.countryCode || 'INTL',
   };
 }
@@ -2527,6 +2828,12 @@ function generateSmartSurveyValue(fieldType, question, cfg, context) {
     }
     case 'consent':
       return pickBestConsentOption(question);
+    case 'nationality':
+      return context.nationality?.nationality || 'Filipino';
+    case 'ethnicity':
+      return pickRandom(['Filipino', 'Chinese', 'Indian', 'Visayan', 'Ilocano', 'Cebuano', 'Moro', 'Igorot']);
+    case 'ancestry':
+      return pickRandom(['Filipino', 'Chinese', 'Spanish', 'American', 'Japanese', 'Korean', 'Indian']);
     default:
       return null;
   }
@@ -3420,6 +3727,14 @@ function attachAllListeners(formData, s, updateState) {
       if (!startBtn) return;
       if (startBtn.disabled) return;
       if (window.spammerzState.running) return;
+
+      // Check for email collection and show blocking modal
+      const emailCollectionEnabled = detectEmailCollectionEnabled();
+      if (emailCollectionEnabled) {
+        showEmailCollectionModal();
+        return;
+      }
+
       // Use fresh state from window to avoid closure staleness
       const nextState = {
         ...window.spammerzState,
@@ -3476,6 +3791,26 @@ function attachAllListeners(formData, s, updateState) {
       const fields = detectAddressQuestions(window.spammerzFormData.allQuestions);
       updateState({ autoAddressConfig: { ...config, enabled, fields } });
       window.renderSpammerZUI(formData, window.spammerzState, updateState);
+    };
+  }
+
+  // Auto Nationality toggle
+  const autoNationalityToggle = document.getElementById('spz-auto-nationality-toggle');
+  if (autoNationalityToggle) {
+    autoNationalityToggle.onchange = (e) => {
+      const enabled = e.target.checked;
+      const config = window.spammerzState.autoNationalityConfig || createDefaultNationalityConfig();
+      const fields = detectNationalityQuestions(formData.allQuestions);
+      updateState({ autoNationalityConfig: { ...config, enabled, fields } });
+      window.renderSpammerZUI(formData, window.spammerzState, updateState);
+    };
+  }
+
+  // Nationality settings button
+  const nationalitySettingsBtn = document.getElementById('spz-nationality-settings-btn');
+  if (nationalitySettingsBtn) {
+    nationalitySettingsBtn.onclick = () => {
+      renderAutoNationalityModal(window.spammerzState);
     };
   }
 
@@ -3591,6 +3926,10 @@ async function startSubmissionLoop(formData, state, updateState) {
     } catch (err) {
       logSubmitDebug('submit-error', payload, formData, { error: err?.message || String(err) });
       window.spammerzState.failed++;
+      // Show email collection warning on failures
+      if (window.spammerzState.failed === 1) {
+        showEmailCollectionWarning();
+      }
     }
 
     updateProgressUI(getState());
@@ -3633,6 +3972,9 @@ function buildLiveFormPayload(formData, state, submissionPlan = new Map(), planI
   const detectedAddressFields = autoAddressConfig.enabled ? detectAddressQuestions(formData.allQuestions) : [];
   const activeAddressFields = autoAddressConfig.fields?.length ? autoAddressConfig.fields : detectedAddressFields;
   const generatedAddress = autoAddressConfig.enabled ? generateAddress(autoAddressConfig) : null;
+  const autoNationalityConfig = state.autoNationalityConfig || createDefaultNationalityConfig();
+  const detectedNationalityFields = autoNationalityConfig.enabled ? detectNationalityQuestions(formData.allQuestions) : [];
+  const activeNationalityFields = autoNationalityConfig.fields?.length ? autoNationalityConfig.fields : detectedNationalityFields;
   const smartContext = createSmartSurveyContext(formData, state, generatedName, generatedAddress);
   const resolvedEntries = [];
 
@@ -3656,6 +3998,13 @@ function buildLiveFormPayload(formData, state, submissionPlan = new Map(), planI
     if (generatedAddress && activeAddressFields.length) {
       const binding = activeAddressFields.find(f => f.questionIndex === idx);
       if (binding) value = formatGeneratedAddressForField(generatedAddress, binding);
+    }
+    // Apply nationality if detected
+    if (smartContext.nationality && smartContext.nationality.nationality) {
+      const nationalityBinding = activeNationalityFields?.find(f => f.questionIndex === idx);
+      if (nationalityBinding) {
+        value = formatGeneratedNationalityForField(nationalityBinding, smartContext.nationality);
+      }
     }
 
     applyPreviewValue(formEl, q, value);
@@ -4137,6 +4486,388 @@ function ensureGoogleFormFields(formData, formEl) {
   ensure('pageHistory', '0');
   ensure('partialResponse', '[null,null,""]');
   ensure('draftResponse', '[null,null,"-1"]');
+}
+
+/**
+ * Detects if the Google Form has "Collect email addresses" enabled.
+ * This feature requires Google authentication and causes 400 errors when submissions bypass it.
+ */
+function detectEmailCollectionEnabled() {
+  // Method 1: Check FB_PUBLIC_LOAD_DATA_ for email collection setting
+  const raw = getFbPublicLoadData();
+  if (raw && Array.isArray(raw) && raw.length > 1) {
+    try {
+      // raw[1] contains form metadata, raw[1][0] contains form settings
+      const formSettings = raw[1]?.[0];
+      if (Array.isArray(formSettings)) {
+        // Settings array structure: check common boolean positions
+        // Index 2-4 often contains quiz/email flags
+        for (let i = 2; i < Math.min(formSettings.length, 10); i++) {
+          const setting = formSettings[i];
+          // Check for email collection at specific indices
+          if (setting === true && (i === 5 || i === 7)) {
+            return true;
+          }
+          // Check if it's an object with email-related flags
+          if (setting && typeof setting === 'object') {
+            if (setting.emailCollection || setting.collectEmail) {
+              return true;
+            }
+            // Check nested boolean at positions 5 or 7
+            if (setting[5] === true || setting[7] === true) {
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Method 2: Check for email input field in the form DOM
+  const formEl = findLiveFormRoot();
+  if (formEl) {
+    // Look for email-related inputs or labels
+    const emailInputs = formEl.querySelectorAll(
+      'input[name*="email" i], input[placeholder*="email" i], input[aria-label*="email" i]'
+    );
+    if (emailInputs.length > 0) return true;
+
+    // Check for entry fields associated with email
+    const entryFields = formEl.querySelectorAll('input[name^="entry."]');
+    for (const field of entryFields) {
+      const name = (field.name || '').toLowerCase();
+      const id = (field.id || '').toLowerCase();
+      if (name.includes('email') || id.includes('email')) {
+        return true;
+      }
+    }
+
+    // Check for email-related labels/text
+    const emailLabels = formEl.querySelectorAll('.docssharedWizSelectSearchOptionLabel, span, label, div[data-value]');
+    for (const label of emailLabels) {
+      const text = (label.textContent || '').toLowerCase().trim();
+      // Look for "Email Address" or similar email field labels
+      if (text === 'email address' || text.includes('email address')) {
+        return true;
+      }
+    }
+
+    // Check URL for email collection parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('usp') === 'sf' || urlParams.get('usp')?.startsWith('email')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Displays a warning message about email collection requirements.
+ * This is shown when submissions fail due to Google Forms' email collection feature.
+ */
+function showEmailCollectionWarning(permanent = true) {
+  // Don't show duplicate warnings
+  const existing = document.getElementById('spz-email-warning');
+  if (existing) return;
+
+  const container = document.getElementById('spammerz-container') || document.body;
+  const warning = document.createElement('div');
+  warning.id = 'spz-email-warning';
+  warning.innerHTML = `
+    <div class="spz-warning-banner">
+      <div class="spz-warning-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <div class="spz-warning-content">
+        <strong>Email Collection Enabled</strong>
+        <p>Submissions are failing because this form requires Google authentication. The form owner must disable "Collect email addresses" in Google Forms settings for SpammerZ to work.</p>
+      </div>
+      <button class="spz-warning-close" onclick="this.parentElement.remove()">&#10005;</button>
+    </div>
+  `;
+
+  // Inject styles if not already present
+  if (!document.getElementById('spz-warning-styles')) {
+    const style = document.createElement('style');
+    style.id = 'spz-warning-styles';
+    style.textContent = `
+      #spammerz-container > .spz-warning-banner,
+      .spz-warning-banner {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        background: var(--spammerz-card);
+        border: 1px solid rgba(255, 68, 68, 0.3);
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-family: inherit;
+        animation: spz-warning-appear 0.3s ease-out;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      }
+      @keyframes spz-warning-appear {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .spz-warning-icon {
+        color: var(--spammerz-error);
+        flex-shrink: 0;
+        background: rgba(255, 68, 68, 0.1);
+        border-radius: 6px;
+        padding: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .spz-warning-content {
+        flex: 1;
+        min-width: 0;
+      }
+      .spz-warning-content strong {
+        display: block;
+        color: var(--spammerz-text);
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .spz-warning-content p {
+        color: var(--spammerz-text-muted);
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .spz-warning-close {
+        background: none;
+        border: none;
+        color: var(--spammerz-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        font-size: 14px;
+        flex-shrink: 0;
+        transition: color 0.15s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+      }
+      .spz-warning-close:hover {
+        color: var(--spammerz-error);
+      }
+      #spammerz-container .spz-warning-banner {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        max-width: 380px;
+        z-index: 999999;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Insert warning at the bottom of container if it's the spammerz container
+  if (container.id === 'spammerz-container') {
+    container.insertBefore(warning, container.firstChild);
+  } else {
+    container.appendChild(warning);
+  }
+}
+
+/**
+ * Shows a blocking modal warning when email collection is detected.
+ * The user must acknowledge before the spammer can be used.
+ */
+function showEmailCollectionModal() {
+  // Don't show duplicate modals
+  const existing = document.getElementById('spz-email-modal');
+  if (existing) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'spz-email-modal';
+  modal.innerHTML = `
+    <div class="spz-email-backdrop">
+      <div class="spz-email-modal">
+        <div class="spz-email-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div class="spz-email-header">
+          <h2>Error: Email Collection Enabled</h2>
+        </div>
+        <div class="spz-email-body">
+          <p class="spz-email-desc">This form requires Google account authentication. SpammerZ cannot work with forms that collect email addresses.</p>
+          <div class="spz-email-steps">
+            <h3>To fix this, the form owner must:</h3>
+            <ol>
+              <li>Open the form in Google Forms</li>
+              <li>Click the <strong>Settings</strong> (gear icon)</li>
+              <li>Go to <strong>General</strong> tab</li>
+              <li>Find <strong>"Collect email addresses"</strong></li>
+              <li>Change it to <strong>"Do not collect"</strong> or use <strong>"Responder Input"</strong></li>
+            </ol>
+          </div>
+          <div class="spz-email-actions">
+            <a href="https://support.google.com/a/users/answer/13974922" target="_blank" class="spz-email-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              Learn more about email collection settings
+            </a>
+          </div>
+          <p class="spz-email-tip">Tip: Ask the form owner to disable email collection, or use the "Don't collect" / "Responder can type email" option instead.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Inject modal styles
+  if (!document.getElementById('spz-email-styles')) {
+    const style = document.createElement('style');
+    style.id = 'spz-email-styles';
+    style.textContent = `
+      .spz-email-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(4px);
+        z-index: 9999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      .spz-email-modal {
+        background: var(--spammerz-card);
+        border: 1px solid var(--spammerz-border);
+        border-radius: 16px;
+        width: min(480px, calc(100vw - 32px));
+        max-width: 480px;
+        overflow: hidden;
+        box-shadow:
+          0 24px 80px rgba(0, 0, 0, 0.6),
+          0 0 0 1px rgba(255, 68, 68, 0.1) inset,
+          0 0 60px rgba(255, 68, 68, 0.08);
+        animation: modalSlideIn 0.25s ease;
+      }
+      .spz-email-icon {
+        background: linear-gradient(135deg, rgba(255, 68, 68, 0.15), rgba(255, 68, 68, 0.05));
+        padding: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .spz-email-icon svg {
+        width: 48px;
+        height: 48px;
+        color: var(--spammerz-error);
+        filter: drop-shadow(0 0 20px rgba(255, 68, 68, 0.4));
+      }
+      .spz-email-header {
+        padding: 20px 24px 0 24px;
+      }
+      .spz-email-header h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--spammerz-error);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .spz-email-header h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 20px;
+        background: var(--spammerz-error);
+        border-radius: 2px;
+        box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+      }
+      .spz-email-body {
+        padding: 16px 24px 24px;
+      }
+      .spz-email-desc {
+        margin: 0 0 20px 0;
+        font-size: 14px;
+        color: var(--spammerz-text-secondary);
+        line-height: 1.6;
+      }
+      .spz-email-steps {
+        background: rgba(255, 68, 68, 0.08);
+        border: 1px solid rgba(255, 68, 68, 0.2);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+      }
+      .spz-email-steps h3 {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--spammerz-text);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .spz-email-steps ol {
+        margin: 0;
+        padding-left: 20px;
+        font-size: 13px;
+        color: var(--spammerz-text-secondary);
+        line-height: 1.8;
+      }
+      .spz-email-steps strong {
+        color: var(--spammerz-text);
+        font-weight: 600;
+      }
+      .spz-email-actions {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 16px;
+      }
+      .spz-email-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: rgba(255, 68, 68, 0.1);
+        border: 1px solid rgba(255, 68, 68, 0.3);
+        border-radius: 8px;
+        color: var(--spammerz-text-secondary);
+        text-decoration: none;
+        font-size: 13px;
+        transition: all 0.15s ease;
+      }
+      .spz-email-link:hover {
+        background: rgba(255, 68, 68, 0.2);
+        border-color: rgba(255, 68, 68, 0.5);
+        color: var(--spammerz-text);
+      }
+      .spz-email-tip {
+        margin: 0;
+        padding: 12px 16px;
+        background: var(--spammerz-card);
+        border: 1px solid var(--spammerz-border);
+        border-radius: 8px;
+        font-size: 12px;
+        color: var(--spammerz-text-muted);
+        line-height: 1.5;
+        text-align: center;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(modal);
 }
 
 function logFormData(formData, options = {}) {
