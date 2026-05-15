@@ -28,9 +28,10 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 ### Smart Detection + Autofill
 
 - **Smart detection engine** — auto-detects name, address, nationality, and survey intent fields
+- **Context-aware detection** — intelligently distinguishes between similar terms (e.g., "work flexibility comments" is NOT occupation, but "What is your occupation?" IS)
 - **Gender / sex detection** — detects gender/sex questions and lets you control the answer pool
 - **Age detection** — auto-fills age fields with configurable min/max range
-- **Smart survey answers** — context-aware values for common patterns: email, phone, birthdate, date, school, course/strand, year level, occupation, religion, household size, consent/eligibility
+- **Smart survey answers** — context-aware values for common patterns: email, phone, birthdate, date, school, course/strand, year level, occupation, religion, household size, consent/eligibility, nationality, ethnicity, ancestry
 - **Auto name generator** — full name patterns, first/middle/last/MI, extension support, and uppercase-aware output
 - **Auto address generator** — country-aware address profiles with region/city/barangay/zip and dependent location fields
 - **Auto nationality generator** — detects nationality, citizenship, ethnicity, and ancestry fields with pool-based generation (200+ nationalities)
@@ -40,11 +41,10 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 
 ### Name Detection Patterns
 
-Automatically detects name fields with various phrasings:
-- "Name of the Participant", "Name of Student", "Name of..."
-- "Complete name", "Full name", "Your name"
-- "First name", "Last name", "Middle name", "Middle Initial"
-- "Extension" (Jr., Sr., II, III, etc.)
+Context-aware name field detection that distinguishes person names from other "name" mentions:
+- **Detected**: "Name of the Participant", "Name of Student", "Your name", "Complete name", "Full name"
+- **Filtered out**: "Company name", "Product name", "File name", "Event name", "Account name", "Network name"
+- Also detects: "First name", "Last name", "Middle name", "Middle Initial", "Extension" (Jr., Sr., II, III, etc.)
 
 > Tip: When extension is detected but disabled, the UI shows a red warning badge prompting you to enable it.
 
@@ -55,8 +55,9 @@ Automatically detects name fields with various phrasings:
 
 ### Profession / Work Detection
 
-Auto-detects occupation fields and generates realistic professions:
-- "Occupation", "Profession", "Job", "Work", "Current profession/work"
+Auto-detects occupation fields and generates realistic professions. Uses context-aware detection to avoid false positives like survey questions mentioning "work":
+- "What is your occupation?" → Detected as occupation ✓
+- "Comments about work flexibility" → NOT occupation (false positive) ✓
 - Uses an extensive profession database (720+ jobs including Doctor, Engineer, Teacher, etc.)
 
 ### Course / Strand Detection
@@ -65,11 +66,14 @@ Auto-detects education fields:
 - **Senior High** — "STEM", "HUMSS", "ABM", "GAS", "TVL"
 - **College** — "BS Information Technology", "BS Psychology", "BS Nursing", and 440+ more courses
 
-### Weights, Sliders, and Randomization     
+### Weights, Sliders, and Randomization
 
 - **Slider-based weighting** — per-option sliders with live percentage readout and total weight summary
 - **Two weighting modes** — Plan (pre-calculated distribution) or Dice (independent random rolls)
-- **Randomize weights** — one-click random weight generation across options
+- **Randomize weights** — flexible randomization options:
+  - **Randomize All** — one-click random weights for all questions
+  - **Per-section randomizer** — grouped by form page/section, randomize weights within each section
+  - **Per-question randomizer** — individual randomize button for each question's weights
 - **Uniform or weighted picks** — supports classic random or strict weighting per question
 
 ### Submission Experience
@@ -181,6 +185,10 @@ Click the **✕ button** in the top-right header to disable. The workspace hides
 ### Auto Address Settings
 
 ![Auto Address Settings](images/Auto_addres_Settings.png)
+
+Context-aware address detection that distinguishes address-related fields from similar terms:
+- **Detected**: "Your address", "Home address", "Current address", country/city/zip with possessive
+- **Filtered out**: "Country of birth" (→ nationality), "Favorite city", "City of birth", "ZIP code of an area"
 
 ### Email Collection Enabled Detection
 
