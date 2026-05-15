@@ -2,7 +2,7 @@
 
 > Bulk submit Google Forms with random answers. Serverless Chrome extension.
 
-![SpammerZ](icons/icon128.png)
+![SpammerZ](images/icon128.png)
 
 ---
 
