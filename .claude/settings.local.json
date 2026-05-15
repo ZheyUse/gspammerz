@@ -13,7 +13,12 @@
       "Bash(node --check \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\content\\\\content.js\")",
       "Bash(node --check \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\ui\\\\panel.js\")",
       "WebFetch(domain:docs.google.com)",
-      "Bash(Remove-Item *)"
+      "Bash(Remove-Item *)",
+      "Bash(Select-String -Path \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\ui\\\\panel.js\" -Pattern \"Weight sliders\" -Context 0,10)",
+      "Bash(Select-Object -First 1)",
+      "Bash(powershell *)",
+      "Bash(grep -n \"&& !\\\\\\\\|&& \\\\\\\\|/i &&\" \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\ui\\\\panel.js\")",
+      "Bash(grep \"/.*&& !\\\\\\\\\\\\b\\\\|&& !\\\\\\\\\\\\b|/i &&\")"
     ]
   }
 }

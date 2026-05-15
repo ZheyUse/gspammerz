@@ -1122,7 +1122,7 @@ function renderWeightsPanel(formData, s, updateState) {
   panel.innerHTML = `
     <div class="spammerz-config-header spammerz-weights-header">
       <span>Configure Weights (%)</span>
-      <button class="spammerz-icon-btn spammerz-random-weights-btn" id="spz-randomize-weights" type="button" title="Randomize weights">
+      <button class="spammerz-icon-btn spammerz-random-weights-btn" id="spz-randomize-weights" type="button" title="Randomize all weights">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M16 3h5v5"/>
           <path d="M4 20L21 3"/>
@@ -1135,13 +1135,64 @@ function renderWeightsPanel(formData, s, updateState) {
     <div class="spammerz-config-questions" id="spz-questions-list"></div>
   `;
 
-  // Render each question
+  // Group questions by page/section
+  const questionsByPage = groupQuestionsByPage(formData);
+
+  // Render each page group
   const questionsList = document.getElementById('spz-questions-list');
-  formData.allQuestions.forEach((q, qIdx) => {
-    const cfg = s.answers[qIdx];
-    if (!cfg) return;
-    questionsList.appendChild(createWeightedQuestionConfig(q, cfg, qIdx));
+  Object.entries(questionsByPage).forEach(([pageIdx, questions]) => {
+    if (questions.length === 0) return;
+
+    // Check if any question in this page has configurable weights
+    const hasConfigurables = questions.some(q => {
+      const cfg = s.answers[formData.allQuestions.indexOf(q)];
+      return cfg && getConfigurableOptionCount(q, cfg) > 1;
+    });
+
+    // Get page title
+    const page = formData.pages?.find(p => p.index === parseInt(pageIdx));
+    const pageTitle = page?.title || `Section ${parseInt(pageIdx) + 1}`;
+
+    // Add page section header with per-page randomize button
+    const typeSection = document.createElement('div');
+    typeSection.className = 'spammerz-type-section';
+    typeSection.innerHTML = `
+      <div class="spammerz-type-section-header">
+        <span class="spammerz-type-section-title">${escHtml(pageTitle)}</span>
+        <button class="spammerz-icon-btn spammerz-random-page-btn" data-page="${pageIdx}" type="button" title="Randomize this section" ${!hasConfigurables ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 3h5v5"/>
+            <path d="M4 20L21 3"/>
+            <path d="M21 16v5h-5"/>
+            <path d="M15 15l6 6"/>
+            <path d="M4 4l5 5"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    questionsList.appendChild(typeSection);
+
+    // Render each question in this page
+    questions.forEach(q => {
+      const qIdx = formData.allQuestions.indexOf(q);
+      const cfg = s.answers[qIdx];
+      if (!cfg) return;
+      questionsList.appendChild(createWeightedQuestionConfig(q, cfg, qIdx));
+    });
   });
+}
+
+/**
+ * Group questions by their page/section
+ */
+function groupQuestionsByPage(formData) {
+  const grouped = {};
+  formData.allQuestions.forEach(q => {
+    const pageIdx = q.pageIndex ?? 0;
+    if (!grouped[pageIdx]) grouped[pageIdx] = [];
+    grouped[pageIdx].push(q);
+  });
+  return grouped;
 }
 
 /**
@@ -1280,6 +1331,24 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
         }
       }
 
+      // Add header with randomize button for this question's weights
+      const weightsHeader = document.createElement('div');
+      weightsHeader.className = 'spammerz-weights-header-row';
+      weightsHeader.innerHTML = `
+        <button class="spammerz-icon-btn spammerz-random-question-btn" data-qidx="${qIdx}" type="button" title="Randomize weights for this question" ${options.length <= 1 ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 3h5v5"/>
+            <path d="M4 20L21 3"/>
+            <path d="M21 16v5h-5"/>
+            <path d="M15 15l6 6"/>
+            <path d="M4 4l5 5"/>
+          </svg>
+        </button>
+      </div>
+      <div class="spammerz-weights-slider-area">
+      `;
+      weightsList.appendChild(weightsHeader);
+
       // Add weight slider for each option
       options.forEach((opt, optIdx) => {
         const weight = cfg.weights ? (cfg.weights[optIdx] || 0) : 0;
@@ -1406,37 +1475,494 @@ function generateAgeValue(config = {}) {
   return String(ageConfig.min + Math.floor(Math.random() * span));
 }
 
+/**
+ * Smart occupation/employment field detection
+ * Uses context-aware matching to avoid false positives like "comments about work"
+ */
+function isLikelyOccupationField(title) {
+  const t = title.toLowerCase();
+
+  // Reject false positives - question patterns that mention work but aren't asking about occupation
+  const falsePositivePatterns = [
+    /^(how\s+do|do\s+you|any\s+)?(comments?|reflections?|thoughts?|opinions?|feedback|thoughts?|suggestions?|experiences?)\s+(about|on|regarding|concerning|relating\s+to)\b/i,
+    /\bcomments?\s+(about|on|regarding|concerning|about\s+your)?\s*(work|job|employment)/i,
+    /\b(work|job|employment)\s+(experience|life|balance|satisfaction)\b/i,
+    /\bhow\s+(do\s+you|satisfied\s+are\s+you)\s+(find|like|feel)\s+(your|the)?\s*(work|job)/i,
+    /\b(feedback|comments?|reflections?)\b/i,
+    /\b(open\s*-|free\s*form|text|essay|textarea|describe)/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) {
+      // Check if there's a strong occupation indicator alongside the false positive
+      if (/\b(occupation|profession|employer|job\s*title|what\s+is\s+your\s+(current\s+)?(job|occupation|position)|where\s+do\s+you\s+work)\b/i.test(t)) {
+        continue; // Override false positive, this is a real occupation question
+      }
+      return false;
+    }
+  }
+
+  // Strong occupation indicators ( standalone keywords )
+  const strongOccupationKeywords = [
+    /\boccupation\b/i,
+    /\bprofession\b/i,
+    /\bemployment\s*status\b/i,
+    /\bcurrent\s+occupation\b/i,
+    /\bprofessional\s+title\b/i,
+    /\bjob\s+title\b/i,
+    /\bworking\s+status\b/i,
+    /\bemployed\s+(as|by|in|with)?\b/i,
+    /\bemployee\s+status\b/i,
+    /\btype\s+of\s+(work|employment|job)\b/i,
+    /\bprimary\s+(occupation|work|profession)\b/i,
+    /\bofficial\s+designation\b/i,
+    /\bdesignation\b/i,
+  ];
+
+  for (const pattern of strongOccupationKeywords) {
+    if (pattern.test(t)) return true;
+  }
+
+  // Medium strength - occupation keywords with context (avoiding standalone "work")
+  const mediumOccupationKeywords = [
+    /\bwhat\s+(is\s+your|do\s+you\s+do\s+for\s+a\s+living)\b/i, // "What is your [occupation]" or "What do you do for a living"
+    /\byour\s+(current\s+)?(job|profession|position|role)\b/i, // "your current job/profession"
+    /\bwhat\s+(do\s+you|is\s+your)\s+(do|do\s+for)\b/i, // "What do you do" (implying occupation)
+    /\bemployer\b/i,
+    /\bcompany\b/i,
+    /\bindustry\b/i,
+    /\bwork\s+(at|for|in)\s+(the\s+)?(company|employer|organization|firm|office)/i, // explicit work location
+    /\bcurrently\s+(employed|work|doing)\b/i,
+    /\bcurrent\s+(position|employment|profession|job)\b/i,
+    /\bwhere\s+(do\s+you|does\s+the\s+.*\s+work)\b/i,
+    /\bhow\s+(many\s+years\s+(of|at)|long\s+h)?(do\s+you|at\s+your)\s+(work|hold|have\s+you|been\s+working)/i,
+    /\byears?\s+(of\s+)?(experience|service|employment)\b/i,
+    /\byears?\s+in\s+(the\s+)?(field|industry|profession|role)\b/i,
+  ];
+
+  let mediumMatchCount = 0;
+  for (const pattern of mediumOccupationKeywords) {
+    if (pattern.test(t)) {
+      mediumMatchCount++;
+      if (mediumMatchCount >= 1) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Smart gender/sex field detection
+ */
+function isLikelyGenderField(title) {
+  const t = title.toLowerCase();
+
+  // False positives to reject
+  const falsePositivePatterns = [
+    /\bhow\s+do\s+you\s+(identify|feel)\b/i,
+    /\bwhich\s+gender\s+(is|belongs)\b/i,
+    /\b(gender|sex)\s+(of\s+the\s+)?(participant|respondent|subject|person)\b/i,
+    /\b(gender|sex)\s+between\b/i,
+    /\b(gender|sex)\s+(distribution|breakdown|ratio)\b/i,
+    /\band\s+gender\b/i,
+    /\bgender\s+is\s+(important|relevant|required)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) {
+      // If it also has "your" or direct question, it might be valid
+      if (/\byour\b|\bare\s+you\b|\bselect\b|\bwhat\b.*\byour\b|\bplease\b.*\byour\b/i.test(t)) continue;
+      return false;
+    }
+  }
+
+  // Strong gender patterns
+  if (/\b((what\s+is|please\s+(select|indicate|tell|choose)|select|choose|state|provide|enter)\s+(your\s+)?|your\s+)?gender\b/i.test(t)) return true;
+  if (/\b((what\s+is|please\s+(select|indicate|tell|choose)|select|choose|state|provide|enter)\s+(your\s+)?|your\s+)?biological\s+sex\b/i.test(t)) return true;
+  if (/\bbiological\s+sex\b/i.test(t)) return true;
+  if (/\b(sex|gender)\s+(preference|choice)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart email field detection
+ */
+function isLikelyEmailField(title) {
+  const t = title.toLowerCase();
+
+  // False positives - patterns that mention email but aren't asking for the user's email
+  const falsePositivePatterns = [
+    /supervisor'?s?\s+email/i,
+    /\bemail\s+(will|must|should)\s+(be|you)/i,
+    /\bwe\s+will\s+email\b/i,
+    /\bemail\s+(confirmation|notification|verification)\b/i,
+    /\bemail\s+will\s+be\s+used\b/i,
+    /\bsomeone\s+else'?s?\s+email\b/i,
+    /\bemail\s+address\s+\(optional\)/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) {
+      // Override if this is actually a direct question asking for user's email
+      if (/\byour\s+(e?mail|e?mail\s*address)\b/i.test(t)) continue;
+      if (/^\s*(what\s+is|please\s+(provide|enter|give))\s+(your\s+)?e?mail/i.test(t)) continue;
+      return false;
+    }
+  }
+
+  // Additional false positive - "email to contact/us" without "your"
+  if (/email\s+(to\s+)?(contact|reach|us)/i.test(t) && !/\byour\b/i.test(t)) return false;
+
+  // False positive: "your email for us/future updates" - but NOT if it's a direct question
+  if (/your\s+email\s+(address\s+)?for\s+(us|future\s+updates|contact\s+purposes)/i.test(t) && !/^\s*(what\s+is|please\s+(provide|enter|give))/i.test(t)) return false;
+
+  // Strong email patterns
+  if (/\be-?mail\b/i.test(t)) {
+    if (/\byour\b|\byours?\b|\bwhat\s+is\b|\bprovide\b|\bselect\b|\benter\b|\bcontact\b/i.test(t)) return true;
+    // Email at start of question
+    if (/\A\s*(what\s+(is\s+)?(your\s+)?e?mail|e?mail(\s*address)?\s*\?|e?mail\s+address\s*\z)/i.test(t)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Smart phone number field detection
+ */
+function isLikelyPhoneField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  const falsePositivePatterns = [
+    /\bphone\s+(of|for|to|number\s+of)\b/i,
+    /\bemergency\s+contact.*phone\b/i,
+    /\bsomeone\s+else.*phone\b/i,
+    /\bphone\s+(will|must|should|can)\b/i,
+    /\bphone\s+(us|call|reach)\b/i,
+    /\bwe\s+will\s+call\b/i,
+    /\bif\s+we.*phone\b/i,
+    /\bphone\s+number\s+\(optional\)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong phone patterns
+  if (/\b(contact\s*(number|no)|mobile\s*(number|no)?|phone\s*(number|no)?|cellphone|cell\s*number|telephone)\b/i.test(t)) {
+    if (/\byour\b|\bprovide\b|\bselect\b|\bwhat\s+is\b|\bi\s+(can|could)\s+reach\b/i.test(t)) return true;
+    // Just "Your phone number" or "Phone number"
+    if (/^(what\s+is\s+)?your\s+(contact\s*)?(number|no|phone|telephone|mobile|cell)(\s*number)?\?$/i.test(t)) return true;
+    return /\byour\b/i.test(t);
+  }
+
+  return false;
+}
+
+/**
+ * Smart school/university field detection
+ */
+function isLikelySchoolField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  const falsePositivePatterns = [
+    /\bschool\s+(of\s+)?(thought|medicine|law|business)\b/i,
+    /\bschool\s+(fees|tuition|policy)\b/i,
+    /\bschool\s+(calendar|schedule|hours)\b/i,
+    /\byour\s+favorite\s+school\b/i,
+    /\bschool\s+(trip|tour|visit)\b/i,
+    /\bwhich\s+school\s+does\b/i,
+    /\bhigh\s+school\s+(diploma|graduate|graduation)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong school patterns
+  if (/\b(school|university|college|campus|institution)\b/i.test(t)) {
+    // With possessive or question indicators
+    if (/\byour\b|\battend\b|\benrolled\b|\bschool\s+where\b|\bat\b|\bwhich\b|\bwhat\b/i.test(t)) return true;
+    // Standalone patterns
+    if (/^what\s+(is\s+)?your\s+(school|enrollment)\b/i.test(t)) return true;
+    if (/\bname\s+of\s+(your\s+)?(school|university|college)\b/i.test(t)) return true;
+    if (/\bcurrent\s+(school|enrollment|college|university)\b/i.test(t)) return true;
+    if (/\bwhere\s+do\s+you\s+(go\s+to|attend)\b/i.test(t)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Smart course/program field detection
+ */
+function isLikelyCourseField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  const falsePositivePatterns = [
+    /\bcourse\s+(of\s+)?(action|study|treatment|events?|this\s+survey)\b/i,
+    /\bcourse\s+(will|can|should|must|to)\b/i,
+    /\bcourse\s+(fee|record|schedule)\b/i,
+    /\boverall\s+course\b/i,
+    /\bhow\s+(was|did)\s+(you\s+)?(enjoy|like)\s+the\s+course\b/i,
+    /\bcourse\s+(evaluation|feedback|review)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong course patterns
+  if (/\b(course|program|degree|strand|track)\b/i.test(t)) {
+    if (/\byour\b|\benrolled\b|\bmajor\b|\bminor\b|\bstudying\b|\bwhich\b|\bwhat\b|\bwhere\b/i.test(t)) return true;
+    if (/\bcourse\s+(of\s+)?(stud|major|program)\b/i.test(t)) return true;
+    if (/\bwhat\s+(are\s+you\s+studying|is\s+your\s+(stud|course))\b/i.test(t)) return true;
+    if (/\bmajor\s+in\b/i.test(t)) return true;
+    if (/\bprogram\s+of\s+study\b/i.test(t)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Smart year/grade level field detection
+ */
+function isLikelyYearLevelField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  const falsePositivePatterns = [
+    /\byear\s+(to\s+date|in\s+review)\b/i,
+    /\bthis\s+year\s+(we\s+will|you\s+can)\b/i,
+    /\byear\s+(of|for)\s+(experience|service)\b/i,
+    /\bsince\s+(what|last)\s+year\b/i,
+    /\byear\s+(end|start|close)\b/i,
+    /\byear\s+you\s+(graduate|graduated|started)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong year level patterns
+  if (/\b(year\s*level|grade\s*level|academic\s*year|section|year\s+of\s+study)\b/i.test(t)) return true;
+  if (/\b(what|which)\s+(year|grade)\s+(are\s+you|level)\b/i.test(t)) return true;
+  if (/\byour\s+(current\s+)?(year|grade)\b/i.test(t)) return true;
+  if (/\b(1st|2nd|3rd|4th|5th|6th|first|second|third|fourth|fifth|sixth)\s*(year|grade)\b/i.test(t)) return true;
+  if (/\b(bs|ba|ma|ms|phd|mba)\s*(year|student)?\b/i.test(t)) return true;
+  if (/\byear\s+(one|two|three|four|five|six)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart religion field detection
+ */
+function isLikelyReligionField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  const falsePositivePatterns = [
+    /\breligion\s+(of\s+the\s+)?(country|area|nation)\b/i,
+    /\byour\s+religion\s+(affects|influences|relates)\b/i,
+    /\bhow\s+does\s+religion\b/i,
+    /\breligion\s+(and\s+)?(politics|beliefs?|cultural)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong religion patterns
+  if (/\breligion\b/i.test(t)) {
+    if (/\byour\b|\bwhat\b|\bwhich\b|\bplease\b|\bselect\b|\bidentify\b/i.test(t)) return true;
+    if (/\byou\s+(belong|follow|practice|identify)\b/i.test(t)) return true;
+    if (/\breligious\s+(affiliation|belief|preference)\b/i.test(t)) return true;
+  }
+  if (/\bfaith\b/i.test(t) && /\b(what|which|your)\b/i.test(t)) return true;
+  if (/\bchurch\b/i.test(t) && /\battend\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart household size field detection
+ */
+function isLikelyHouseholdSizeField(title) {
+  const t = title.toLowerCase();
+
+  // False positives - be strict about "household" matching
+  if (/\bhousehold\s+(income|expenses|items|budget|cost|spending)\b/i.test(t)) return false;
+
+  // Strong household size patterns
+  if (/\b(household\s*size)\b/i.test(t)) return true;
+  if (/\bnumber\s+of\s+(family|household)\s+members\b/i.test(t)) return true;
+  if (/\bfamily\s+members\b/i.test(t) && /\bhow\s+many\b/i.test(t)) return true;
+  if (/\bhow\s+many\s+(people|members)\s+(live\s+in|in|are\s+in)\b.*\b(family|household|home)\b/i.test(t)) return true;
+  if (/\b(family|household)\s+size\b/i.test(t)) return true;
+  if (/\bnumber\s+of\s+(people|persons)\s+(in\s+)?(your\s+)?(family|household)\b/i.test(t)) return true;
+  if (/\byour\s+(family|household)\s+consists?\b/i.test(t)) return true;
+  if (/\bhow\s+many\s+people\s+(in\s+)?your\s+(family|household|home)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart consent/agreement field detection
+ */
+function isLikelyConsentField(title) {
+  const t = title.toLowerCase();
+
+  // Strong consent patterns at the start or with question markers
+  if (/\b(i\s+agree|consent|data\s+privacy|terms\s+and\s+conditions|privacy\s+policy|agree\s+to\s+participate)\b/i.test(t)) return true;
+  if (/\bcheckbox\s+to\s+confirm\b/i.test(t)) return true;
+  if (/\bby\s+(checking|clicking|submitting)\b.*\byou\s+agree\b/i.test(t)) return true;
+  if (/\bi\s+(consent|agree|accept)\b/i.test(t)) return true;
+  if (/\bdo\s+you\s+agree\b/i.test(t) || /\bagreement\s+to\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart nationality field detection
+ */
+function isLikelyNationalityField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  const falsePositivePatterns = [
+    /\bnationality\s+(of\s+the\s+)?(company|organization|product)\b/i,
+    /\bwhat\s+is\s+the\s+your\b.*\bnationality\b/i,
+    /\bnationality\s+(and\s+)?(preference|choice)\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong nationality patterns
+  if (/\b(nationality|citizenship)\b/i.test(t)) {
+    if (/\byour\b|\bwhat\b|\bwhich\b|\bplease\b|\bselect\b|\bidentify\b/i.test(t)) return true;
+    if (/\byou\s+(hold|have|are)\b.*\b(citizen|national)\b/i.test(t)) return true;
+  }
+  if (/\bcountry\s+of\s+(birth|citizenship|origin)\b/i.test(t)) return true;
+  if (/\bwhat\s+is\s+your\s+(nationality|citizenship)\b/i.test(t)) return true;
+  if (/\bwhich\s+(country|nation)\s+(are\s+you|from|do\s+you\s+belong)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart ethnicity field detection
+ */
+function isLikelyEthnicityField(title) {
+  const t = title.toLowerCase();
+
+  // False positives for ethnicity - be specific
+  if (/\betchnic\s+(origin|background)\b/i.test(t) && !/^\s*what\b/i.test(t)) return false;
+  if (/\byour\s+etchnic\s+(background)\b/i.test(t) && /^\s*what\b/i.test(t)) return true;
+
+  // Strong ethnicity patterns
+  if (/\b(ethnic\s*(origin|ity)|ethnicity)\b/i.test(t)) return true;
+  if (/\brace\s+(of\s+)?(the\s+)?participant\b/i.test(t)) return true;
+  if (/\bwhat\s+is\s+your\s+(racial|ethnic)\b/i.test(t)) return true;
+  if (/\brace\s+or\s+ethnicity\b/i.test(t)) return true;
+  if (/\brare\s+you\b.*\b ethnicity\b/i.test(t)) return true;
+  if (/\bhow\s+would\s+you\s+describe\s+your\s+(etchnic|racial)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart ancestry field detection
+ */
+function isLikelyAncestryField(title) {
+  const t = title.toLowerCase();
+
+  // Strong ancestry patterns
+  if (/\b(ancestry|ancestral|ancestors|heritage|lineage)\b/i.test(t)) {
+    if (/\byour\b|\bwhat\b|\bwhich\b|\bplease\b|\bdescribe\b/i.test(t)) return true;
+    if (/\bwhere\s+do\s+your\s+(ancestors?|family)\s+come\s+from\b/i.test(t)) return true;
+    if (/^\s*what\s+is\s+your\s+(ancestry|heritage)\b/i.test(t)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Smart birthdate field detection (more specific than date)
+ */
+function isLikelyBirthdateField(title) {
+  const t = title.toLowerCase();
+
+  if (/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/i.test(t)) return true;
+  if (/\bwhen\s+(were\s+you|is\s+your)\s+born\b/i.test(t)) return true;
+  if (/\byour\s+date\s+of\s+birth\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart generic date field detection
+ */
+function isLikelyDateField(title) {
+  const t = title.toLowerCase();
+
+  // False positives - specific date contexts that are for internal use
+  const falsePositivePatterns = [
+    /\bsurvey\s+(completion|submission)\s*date\b/i,
+    /\bform\s*date\b/i,
+    /\bsubmission\s*date\b/i,
+    /\bwhen\s+did\s+you\s+(submit|complete|finish|take)\b/i,
+    /\byyyy-mm-dd\b/i,
+  ];
+
+  for (const pattern of falsePositivePatterns) {
+    if (pattern.test(t)) return false;
+  }
+
+  // Strong date patterns (but not birthday - that's checked separately)
+  if (!/\b(birth|when\s+were\s+you|born)\b/i.test(t)) {
+    if (/\byour\s+date\b/i.test(t)) return /\b(of\s+)?(event|occurrence|appointment|schedule|visit|test|exam|meeting|interview|start|end)\b/i.test(t);
+    if (/^\s*what\s+date\b/i.test(t)) return true;
+    if (/\bwhat\s+(is\s+)?the\s+date\b/i.test(t)) return true;
+    if (/\bselect\s+(a|the)\s+date\b/i.test(t)) return true;
+  }
+
+  return false;
+}
+
 function detectSmartSurveyQuestion(question, idx = 0) {
   if (!question) return null;
   const title = normalizeNameTitle(question.title || '');
   const base = { questionIndex: idx, questionId: question.id, title: question.title };
   if (!isSmartTextQuestion(question) && question.type !== 'date') return null;
 
-  // Check for native Google Forms date picker type
-  if (question.type === 'date' && !/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) {
-
+  // Use smart context-aware detection functions
+  if (question.type === 'date') {
+    if (isLikelyBirthdateField(title)) return { ...base, fieldType: 'birthdate' };
     return { ...base, fieldType: 'date' };
   }
 
-  if (/\b(gender|sex|biological\s*sex)\b/.test(title)) return { ...base, fieldType: /\bsex\b/.test(title) && !/\bgender\b/.test(title) ? 'sex' : 'gender' };
-  if (/\b(e-?mail|gmail|email\s*address)\b/.test(title)) return { ...base, fieldType: 'email' };
-  if (/\b(contact\s*(number|no)|mobile\s*(number|no)?|phone\s*(number|no)?|cellphone|cell\s*number|telephone)\b/.test(title)) return { ...base, fieldType: 'phone' };
-  if (/\b(birthday|birthdate|birth\s*date|date\s*of\s*birth|dob)\b/.test(title)) {
+  if (isLikelyGenderField(title)) return { ...base, fieldType: /\bsex\b/.test(title) && !/\bgender\b/.test(title) ? 'sex' : 'gender' };
+  if (isLikelyEmailField(title)) return { ...base, fieldType: 'email' };
+  if (isLikelyPhoneField(title)) return { ...base, fieldType: 'phone' };
+  if (isLikelyBirthdateField(title)) return { ...base, fieldType: 'birthdate' };
+  if (isLikelyDateField(title)) return { ...base, fieldType: 'date' };
+  if (isLikelySchoolField(title)) return { ...base, fieldType: 'school' };
+  if (isLikelyCourseField(title)) return { ...base, fieldType: 'course' };
+  if (isLikelyYearLevelField(title)) return { ...base, fieldType: 'yearLevel' };
+  if (isLikelyOccupationField(title)) return { ...base, fieldType: 'occupation' };
+  if (isLikelyReligionField(title)) return { ...base, fieldType: 'religion' };
+  if (isLikelyHouseholdSizeField(title)) return { ...base, fieldType: 'householdSize' };
+  if (isLikelyConsentField(title)) return { ...base, fieldType: 'consent' };
+  if (isLikelyNationalityField(title)) return { ...base, fieldType: 'nationality' };
+  if (isLikelyEthnicityField(title)) return { ...base, fieldType: 'ethnicity' };
+  if (isLikelyAncestryField(title)) return { ...base, fieldType: 'ancestry' };
 
-    return { ...base, fieldType: 'birthdate' };
-  }
-  // Generic date field detection (not birthday variants)
-  if (/\bdate\b/.test(title)) return { ...base, fieldType: 'date' };
-  if (/\b(school|university|college|campus|institution)\b/.test(title)) return { ...base, fieldType: 'school' };
-  if (/\b(course|program|degree|strand|track)\b/.test(title)) return { ...base, fieldType: 'course' };
-  if (/\b(year\s*level|grade\s*level|academic\s*year|section)\b/.test(title)) return { ...base, fieldType: 'yearLevel' };
-  if (/\b(occupation|profession|job|title|work|position|role|current\s+(profession|work|job|position)|employment\s*status|work\s*status)\b/.test(title)) return { ...base, fieldType: 'occupation' };
-  if (/\breligion\b/.test(title)) return { ...base, fieldType: 'religion' };
-  if (/\b(household\s*size|number\s+of\s+(family|household)\s+members|family\s+members)\b/.test(title)) return { ...base, fieldType: 'householdSize' };
-  if (/\b(i\s+agree|consent|data\s+privacy|terms|privacy\s+policy|agree\s+to\s+participate)\b/.test(title)) return { ...base, fieldType: 'consent' };
-  if (/\b(nationality|citizenship|citizen|country\s+of\s+(birth|citizenship|origin)|what\s+is\s+your\s+(nationality|citizenship))\b/i.test(title)) return { ...base, fieldType: 'nationality' };
-  if (/\b(ethnic\s*(origin|ity)|ethnicity|tribe|race)\b/i.test(title)) return { ...base, fieldType: 'ethnicity' };
-  if (/\b(ancestry|ancestral|ancestors|origin\s*(country)?)\b/i.test(title)) return { ...base, fieldType: 'ancestry' };
   return null;
 }
 
@@ -1650,40 +2176,132 @@ function detectAddressQuestions(questions) {
   const detected = [];
   questions.forEach((q, idx) => {
     const title = normalizeNameTitle(q.title || '');
-    const base = { questionIndex: idx, questionId: q.id, title: q.title };
-    if (/\b(country|nation)\b/.test(title)) {
-      detected.push({ ...base, fieldType: 'country' });
-    } else if (/\b(zip|postal|postcode|post\s*code|pin)\s*(code)?\b|\bpincode\b/.test(title)) {
-      detected.push({ ...base, fieldType: 'postalCode' });
-    } else if (/\bbarangay\b|\bbrgy\b/.test(title)) {
+    const rawTitle = q.title || '';
+    const titleLower = title.toLowerCase();
+    const base = { questionIndex: idx, questionId: q.id, title: rawTitle };
+
+    // Country - but NOT nationality/birth questions
+    if (/\b(country|nation)\b/.test(title) && !isAddressFieldContext(title, 'country')) {
+      // Only detect if it looks like address context
+      if (/\byour\b|\bwhat\b.*\bcountry\b|\bwhich\s+country\b|\bcurrent\b|\bliving\s+in\b/i.test(title)) {
+        detected.push({ ...base, fieldType: 'country' });
+      }
+    }
+    // Postal/ZIP code
+    else if (/\b(zip|postal|postcode|post\s*code|pin)\s*(code)?\b|\bpincode\b/.test(title)) {
+      if (/\byour\b|\bwhat\b.*\bzip\b|\bwhich\b.*\bzip\b|\byour\s+location\b/i.test(title)) {
+        detected.push({ ...base, fieldType: 'postalCode' });
+      }
+    }
+    // Barangay
+    else if (/\bbarangay\b|\bbrgy\b/.test(title)) {
       detected.push({ ...base, fieldType: 'barangay' });
-    } else if (/\b(ward|ku|district)\b/.test(title)) {
+    }
+    // Ward/District
+    else if (/\b(ward|ku|district)\b/.test(title)) {
       detected.push({ ...base, fieldType: 'ward' });
-    } else if (/\b(address\s*line\s*2|address\s*2|line\s*2|addr\s*2)\b|\b(unit|suite|apartment|apt|floor|building|village|subdivision)\b/.test(title)) {
+    }
+    // Address Line 2
+    else if (/\b(address\s*line\s*2|address\s*2|line\s*2|addr\s*2)\b|\b(unit|suite|apartment|apt|floor|building|village|subdivision)\b/.test(title)) {
       detected.push({ ...base, fieldType: 'addressLine2' });
-    } else if (/\b(address\s*line\s*1|address\s*1|line\s*1|addr\s*1)\b/.test(title)) {
+    }
+    // Address Line 1
+    else if (/\b(address\s*line\s*1|address\s*1|line\s*1|addr\s*1)\b/.test(title)) {
       detected.push({ ...base, fieldType: 'addressLine1' });
-    } else if (/\b(county|borough)\b/.test(title)) {
+    }
+    // County/Borough
+    else if (/\b(county|borough)\b/.test(title)) {
       detected.push({ ...base, fieldType: 'county' });
-    } else if (/\b(city|municipality|town|suburb|locality)\b/.test(title)) {
-      detected.push({ ...base, fieldType: 'city' });
-    } else if (/\bregion\b/.test(title) && !/\b(province|state)\b/.test(title)) {
-      detected.push({ ...base, fieldType: 'region' });
-    } else if (/\b(province|state|territory|prefecture|emirate)\b/.test(title)) {
+    }
+    // City - but NOT favorite/dream/city of birth
+    else if (/\b(city|municipality|town|suburb|locality)\b/.test(title)) {
+      if (!/\b(favorite|favourite|favorite|dream|ideal|best|preferred)\s+(city|town)\b/i.test(titleLower)) {
+        if (/\byour\b|\bwhat\b.*\bcity\b|\bwhich\s+city\b|\bcity\b.*\byour\b/i.test(title)) {
+          detected.push({ ...base, fieldType: 'city' });
+        }
+      }
+    }
+    // Region
+    else if (/\bregion\b/.test(title) && !/\b(province|state)\b/.test(title)) {
+      if (/\byour\b|\bwhat\b.*\bregion\b/i.test(title)) {
+        detected.push({ ...base, fieldType: 'region' });
+      }
+    }
+    // Province/State
+    else if (/\b(province|state|territory|prefecture|emirate)\b/.test(title)) {
       detected.push({ ...base, fieldType: 'state' });
-    } else if (/\b(street|house|lot|block|blk|street\s*number|street\s*name)\b/.test(title)) {
-      detected.push({ ...base, fieldType: 'addressLine1' });
-    } else if (isSmartTextQuestion(q) && isFullAddressTitle(title)) {
+    }
+    // Street
+    else if (/\b(street|house|lot|block|blk|street\s*number|street\s*name)\b/.test(title)) {
+      if (/\byour\b|\bwhat\b.*\bstreet\b|\bwhich\s+street\b/i.test(title)) {
+        detected.push({ ...base, fieldType: 'addressLine1' });
+      }
+    }
+    // Full address
+    else if (isSmartTextQuestion(q) && isFullAddressTitle(title)) {
       detected.push({ ...base, fieldType: 'fullAddress' });
     }
   });
   return detected;
 }
 
+/**
+ * Check if title is about address context vs other contexts (nationality, preference, etc)
+ */
+function isAddressFieldContext(title, fieldType) {
+  const t = title.toLowerCase();
+
+  // Common false positive patterns for address fields
+  const falsePositivePatterns = {
+    country: [
+      /\bcountry\s+of\s+(birth|citizenship|origin|nationality|residency)\b/i,
+      /\band\s+country\b/i,
+      /\bcountry\s+(and|or)\s+/i,
+      /\bwhat\s+(country|is)\b.*\b(from|born|nationality|citizen)\b/i,
+      /\bfavorite\s+country\b/i,
+      /\bdream\s+country\b/i,
+    ],
+    city: [
+      /\bfavorite\s+(city|town)\b/i,
+      /\bfavourite\s+(city|town)\b/i,
+      /\bdream\s+(city|town)\b/i,
+      /\bideal\s+(city|town)\b/i,
+      /\bcity\s+of\s+(birth|origin|dreams)\b/i,
+      /\band\s+city\b/i,
+    ],
+    zip: [
+      /\bzip\s+code\s+of\s+(the\s+)?(area|this\s+area|location)\b/i,
+    ],
+  };
+
+  const patterns = falsePositivePatterns[fieldType] || [];
+  for (const pattern of patterns) {
+    if (pattern.test(t)) return true; // true = is false positive
+  }
+
+  return false;
+}
+
 function isFullAddressTitle(title) {
-  return /\b(address|adress|location|residence|residency|residential|domicile|dwelling|home|place)\b/.test(title)
-    || /\b(current|present|permanent|temporary|mailing|billing|shipping|delivery|home|residential)\s+(address|adress|location|residence|place)\b/.test(title)
-    || /\b(place\s+of\s+(residence|residency|living)|where\s+(do\s+(you|they)\s+)?(currently\s+)?(live|reside|lived|residing)|where\s+are\s+you\s+located|here\s+do\s+you\s+live)\b/.test(title);
+  const t = title.toLowerCase();
+
+  // False positives - address mentions that aren't asking for user's address
+  // Check for these patterns first
+  if (/\bcountry\s+of\s+(birth|citizenship|origin|residence)\b/i.test(t)) return false;
+  if (/\b(business|company|employer|work|office)\s+address\b/i.test(t) && !/\byour\b/i.test(t)) return false;
+
+  // Strong address patterns
+  if (/\b(address|adress|location|residence|residency|residential|domicile|dwelling|place)\b/i.test(t)) {
+    if (/\byour\b|\bmy\b|\bcurrent\b|\bpresent\b|\bpermanent\b|\bshipping\b|\bbilling\b/i.test(t)) return true;
+    if (/^\s*(what\s+is|please\s+provide|enter|give)\s+(your\s+)?(current\s+)?(address|location)/i.test(t)) return true;
+    return /\bcurrent\s+address\b|\bhome\s+address\b|\bshipping\s+address\b|\bbilling\s+address\b/i.test(t);
+  }
+
+  if (/\b(place\s+of\s+(residence|residency|living)|where\s+(do\s+(you|they)\s+)?(currently\s+)?(live|reside|lived|residing)|where\s+are\s+you\s+located|here\s+do\s+you\s+live)\b/.test(t)) {
+    return /\byour\b|\btheir\b|\bour\b|\bhis\b|\bher\b|\bthe\b/i.test(t) || !/^\s*(what\s+is\s+)?the\b/.test(t);
+  }
+
+  return false;
 }
 
 function isSmartTextQuestion(question) {
@@ -1692,19 +2310,64 @@ function isSmartTextQuestion(question) {
 }
 
 function isSchoolNameTitle(title) {
-  return /\b(school|university|college|campus|institution)\b/.test(title)
-    || /\bname\s+of\s+(school|university|college|campus|institution)\b/.test(title)
-    || /\b(school|university|college|campus|institution)\s+name\b/.test(title);
+  const t = title.toLowerCase();
+
+  // False positives - school mentions that aren't asking for user's school
+  const falsePositives = [
+    /\bschool\s+(of\s+)?(thought|medicine|law|business|engineering|arts)\b/i,
+    /\bhigh\s+school\s+(diploma|graduate|graduation|certificate)\b/i,
+    /\bschool\s+(fees|tuition|policy|calendar)\b/i,
+    /\bwhich\s+school\s+(does|would)\b/i,
+  ];
+
+  for (const pattern of falsePositives) {
+    if (pattern.test(t)) return true; // Return true to EXCLUDE from name detection
+  }
+
+  // Strong school patterns
+  if (/\b(school|university|college|campus|institution)\b/i.test(t)) {
+    if (/\byour\b|\battend\b|\benrolled\b|\bwhere\b|\bwhich\b|\bwhat\b/i.test(t)) return true;
+    if (/\bname\s+of\s+(your\s+)?(school|university|college)\b/i.test(t)) return true;
+    return false; // Don't match without context
+  }
+
+  return false;
 }
 
 function isPersonNameTitle(title) {
-  if (/\b(first|last|middle|full|complete)\s*name\b/.test(title)) return true;
-  if (/\byour\s+name\b|\bparticipant\s+name\b/.test(title)) return true;
-  if (title === 'name' || /^name\s*[\(*)].*$/.test(title)) return true;
-  if (isRelationshipNameTitle(title)) return true;
-  if (/\bname\s+of\b/.test(title) && !/\b(university|school|college|institution|company|organization|organisation|department|office|agency|program|course|section|club|group|event|project|study|survey)\b/.test(title)) {
+  const t = title.toLowerCase();
+
+  // False positives - "name" mentions that aren't person's name
+  if (/^\s*(what\s+is\s+)?(your|the)?\s*(company|business|employer|organization|organisation|office)\s+name\b/i.test(t)) return false;
+  if (/^\s*(product|item|service|brand|course|program|department|team|group|project|event|survey|study|file|image|video|account|username|login)\s+name\b/i.test(t)) return false;
+  if (/\bname\s+of\s+(the\s+)?(company|business|employer|organization|organisation|product|service|brand|school|university|department|team|project|event|survey|study|file)\b/i.test(t)) return false;
+  if (/^\s*file\s+name\b/i.test(t)) return false;
+  if (/^\s*network\s+name\b/i.test(t)) return false;
+  if (/^\s*account\s+name\b/i.test(t)) return false;
+  if (/^\s*user(name)?\s*name\b/i.test(t)) return false;
+  if (/^\s*login\s+name\b/i.test(t)) return false;
+  if (/\bname\s+(and\s+email|phone|address)\b/i.test(t) && !/\byour\b/i.test(t)) return false;
+  if (/\bname\s+of\s+(the\s+)?(respondent|participant|person)\s*$/i.test(t) && !/\byour\b/i.test(t)) return false;
+
+  // Strong name patterns
+  if (/\b(first|last|middle|full|complete)\s*name\b/.test(t)) return true;
+  if (/\byour\s+name\b|\bparticipant\s+name\b|\byour\s+(full\s+)?name\b/i.test(t)) return true;
+  if (/\bmy\s+name\b/i.test(t)) return true;
+  if (t === 'name' || t === 'your name' || t === 'full name') return true;
+  if (/^name(\s+[$(]|$)|[\(\[]name[\]\)]$/i.test(t)) return true;
+  if (isRelationshipNameTitle(t)) return true;
+
+  // "Name of" with possessive - but exclude non-person entities
+  if (/\bname\s+of\b/.test(t)) {
+    // Allow if it has person's possessive or direct question for your name
+    if (/\byour\b|\bmy\b|\bour\b|\bhis\b|\bher\b|\bthe\s+participant\b|\bthe\s+respondent\b/i.test(t)) return true;
+    // Reject if it has any organizational entity
+    if (/\b(university|school|college|institution|company|organization|organisation|department|office|agency|program|course|section|club|group|event|project|study|survey|product|brand|service|file|account)\b/i.test(t)) return false;
+    // Reject bare "name of..."
+    if (/^\s*name\s+of\s+/i.test(t) && !/\b(who|whom|person|individuals?)\b/i.test(t)) return false;
     return true;
   }
+
   return false;
 }
 
@@ -3634,6 +4297,72 @@ function attachAllListeners(formData, s, updateState) {
       updateState({ answers: nextAnswers });
     };
   }
+
+  // Randomize weights for specific page/section
+  document.querySelectorAll('.spammerz-random-page-btn').forEach(btn => {
+    btn.onclick = () => {
+      const targetPage = parseInt(btn.dataset.page);
+      const nextAnswers = window.spammerzState.answers.map((cfg, qIdx) => {
+        if (!cfg) return cfg;
+
+        const question = formData.allQuestions[qIdx];
+        if (question.pageIndex !== targetPage) return cfg;
+
+        const optionCount = getConfigurableOptionCount(question, cfg);
+        if (optionCount <= 1) return cfg;
+
+        return {
+          ...cfg,
+          mode: 'weighted',
+          randomize: true,
+          weights: createRandomWeights(optionCount),
+        };
+      });
+
+      updateState({ answers: nextAnswers });
+    };
+  });
+
+  // Randomize weights for specific question
+  document.querySelectorAll('.spammerz-random-question-btn').forEach(btn => {
+    btn.onclick = () => {
+      const qIdx = parseInt(btn.dataset.qidx);
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      const question = formData.allQuestions[qIdx];
+      const optionCount = getConfigurableOptionCount(question, cfg);
+      if (optionCount <= 1) return;
+
+      const newWeights = createRandomWeights(optionCount);
+      cfg.mode = 'weighted';
+      cfg.randomize = true;
+      cfg.weights = newWeights;
+
+      // Update UI
+      const weightsList = btn.closest('.spammerz-weights-list');
+      if (weightsList) {
+        weightsList.querySelectorAll('.spammerz-weight-slider').forEach((slider, idx) => {
+          if (idx < newWeights.length) {
+            slider.value = newWeights[idx];
+            const row = slider.closest('.spammerz-weight-row');
+            const valueSpan = row.querySelector('.spammerz-weight-value');
+            if (valueSpan) valueSpan.textContent = String(newWeights[idx]);
+          }
+        });
+        weightsList.querySelectorAll('.spammerz-weight-row').forEach((weightRow, idx) => {
+          const percentSpan = weightRow.querySelector('.spammerz-weight-percent');
+          if (percentSpan) {
+            percentSpan.textContent = calculatePercentage(newWeights, idx).toFixed(0) + '%';
+          }
+        });
+        const totalEl = weightsList.querySelector('.spammerz-weights-total');
+        if (totalEl) totalEl.textContent = `Total weight: ${newWeights.reduce((a, b) => a + b, 0)}`;
+      }
+
+      updateState({ answers: window.spammerzState.answers });
+    };
+  });
 
   // Weight sliders
   document.querySelectorAll('.spammerz-weight-slider').forEach(input => {
