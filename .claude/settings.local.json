@@ -18,7 +18,8 @@
       "Bash(Select-Object -First 1)",
       "Bash(powershell *)",
       "Bash(grep -n \"&& !\\\\\\\\|&& \\\\\\\\|/i &&\" \"C:\\\\Users\\\\Faith Claire Anne\\\\Documents\\\\ZheysProject\\\\gspammerz\\\\spammerz\\\\ui\\\\panel.js\")",
-      "Bash(grep \"/.*&& !\\\\\\\\\\\\b\\\\|&& !\\\\\\\\\\\\b|/i &&\")"
+      "Bash(grep \"/.*&& !\\\\\\\\\\\\b\\\\|&& !\\\\\\\\\\\\b|/i &&\")",
+      "Bash(Test-Path .git *)"
     ]
   }
 }

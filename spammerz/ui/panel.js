@@ -3,6 +3,183 @@
  * 3-Panel Layout: Submission Settings | Google Form | Configure Weights
  */
 
+// === Update Checker Configuration ===
+const GITHUB_REPO = 'ZheyUse/gspammerz';
+const RAW_MANIFEST_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/spammerz/manifest.json`;
+const COMMITS_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/commits`;
+const GITHUB_RELEASES_URL = 'https://github.com/ZheyUse/gspammerz/releases';
+const CHROME_EXTENSIONS_URL = 'chrome://extensions/';
+
+/**
+ * Check for updates from GitHub
+ * Runs on every panel load
+ */
+async function checkForUpdates() {
+  try {
+    const localVersion = window.chrome?.runtime?.getManifest?.().version;
+
+    // 1. Fetch remote manifest version
+    const manifestRes = await fetch(RAW_MANIFEST_URL);
+    if (!manifestRes.ok) return; // Network error, silently skip
+    const remoteManifest = await manifestRes.json();
+    const remoteVersion = remoteManifest.version;
+
+    // 2. Check version mismatch
+    let reason = null;
+    if (remoteVersion !== localVersion) {
+      reason = 'version';
+    } else {
+      // 3. Check for new commits
+      const commitsRes = await fetch(`${COMMITS_API_URL}?per_page=1`);
+      if (commitsRes.ok) {
+        const commits = await commitsRes.json();
+        if (commits.length > 0) {
+          const latestCommitSha = commits[0].sha;
+          const stored = await new Promise(r => chrome.storage.local.get(['lastKnownCommit'], r));
+          const lastKnownCommit = stored.lastKnownCommit;
+
+          if (!lastKnownCommit || latestCommitSha !== lastKnownCommit) {
+            reason = 'commits';
+            chrome.storage.local.set({ lastKnownCommit: latestCommitSha });
+          }
+        }
+      }
+    }
+
+    if (reason) {
+      showUpdateModal(remoteVersion, localVersion, reason);
+    }
+  } catch (error) {
+    console.error('[SpammerZ] Update check failed:', error);
+  }
+}
+
+/**
+ * Show update available modal
+ */
+function showUpdateModal(remoteVersion, localVersion, reason) {
+  const container = document.getElementById('spz-modal-container');
+
+  const reasonText = reason === 'commits'
+    ? '<p class="spammerz-update-reason">New commits available (version unchanged)</p>'
+    : '<p class="spammerz-update-reason">A newer version is available</p>';
+
+  container.innerHTML = `
+    <div class="spammerz-modal spammerz-update-modal-overlay">
+      <div class="spammerz-update-card">
+        <div class="spammerz-update-header">
+          <span class="spammerz-update-icon">&#8635;</span>
+          <h2>Update Available</h2>
+        </div>
+        <div class="spammerz-update-body">
+          <p class="spammerz-update-version">
+            Current: <strong>v${escHtml(localVersion)}</strong>
+            <span class="spammerz-update-arrow">&#8594;</span>
+            Latest: <strong class="spammerz-update-new">v${escHtml(remoteVersion)}</strong>
+          </p>
+          ${reasonText}
+        </div>
+        <div class="spammerz-update-actions">
+          <button class="spammerz-btn-outline" id="spz-update-later">Later</button>
+          <button class="spammerz-btn-primary" id="spz-update-now">Update Now</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('spz-update-later')?.addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+
+  document.getElementById('spz-update-now')?.addEventListener('click', async () => {
+    const hasGit = await checkGitExists();
+    showReloadModal(hasGit, remoteVersion, localVersion);
+  });
+}
+
+/**
+ * Check if .git folder exists in the extension directory
+ * Returns true only if git is available for pulling updates
+ */
+async function checkGitExists() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'CHECK_GIT_EXISTS' }, (response) => {
+      resolve(response?.hasGit || false);
+    });
+  });
+}
+
+/**
+ * Show reload/update modal based on git availability
+ */
+function showReloadModal(hasGit, remoteVersion, localVersion) {
+  const container = document.getElementById('spz-modal-container');
+  let bodyContent = '';
+
+  if (hasGit) {
+    bodyContent = `
+      <p class="spammerz-update-status">
+        Since your extension has .git, you can pull the latest changes.
+      </p>
+      <div class="spammerz-update-instructions">
+        <p><strong>To update:</strong></p>
+        <ol>
+          <li>Open terminal in your SpammerZ project folder</li>
+          <li>Run <code>git pull</code></li>
+          <li>Click OK to reload the extension</li>
+        </ol>
+      </div>
+    `;
+  } else {
+    bodyContent = `
+      <p class="spammerz-update-warning">
+        Git not found. This extension was likely downloaded as a .zip file.
+      </p>
+      <div class="spammerz-update-instructions">
+        <p><strong>To update:</strong></p>
+        <ol>
+          <li>Click "Update Now" to go to GitHub releases</li>
+          <li>Download the latest version</li>
+          <li>Extract and reload in Chrome Extensions</li>
+        </ol>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div class="spammerz-modal spammerz-update-modal-overlay">
+      <div class="spammerz-update-card">
+        <div class="spammerz-update-header">
+          <span class="spammerz-update-icon">&#8635;</span>
+          <h2>Update SpammerZ</h2>
+        </div>
+        <div class="spammerz-update-body">
+          ${bodyContent}
+        </div>
+        <div class="spammerz-update-actions">
+          <button class="spammerz-btn-outline" id="spz-reload-cancel">Cancel</button>
+          <button class="spammerz-btn-primary" id="spz-reload-confirm">
+            ${hasGit ? 'OK' : 'Update Now'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('spz-reload-cancel')?.addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+
+  document.getElementById('spz-reload-confirm')?.addEventListener('click', () => {
+    if (hasGit) {
+      window.location.href = CHROME_EXTENSIONS_URL;
+    } else {
+      window.open(GITHUB_RELEASES_URL, '_blank');
+      container.innerHTML = '';
+    }
+  });
+}
+
 /**
  * Render the complete workspace UI
  */
@@ -33,6 +210,9 @@ function renderSpammerZUI(formData, state, updateState) {
   }
 
   const version = (window.chrome?.runtime?.getManifest?.().version) || '1.0.4';
+
+  // Check for updates on every panel load
+  checkForUpdates().catch(() => {});
 
   // Load names from packaged markdown files if not already loaded
   if (window.spammerzState.autoNameConfig) {
@@ -1475,6 +1655,22 @@ function generateAgeValue(config = {}) {
   return String(ageConfig.min + Math.floor(Math.random() * span));
 }
 
+
+/**
+ * Check if title is essentially just the keyword (for short/long answer questions)
+ * This enables detection of standalone labels like "Nationality", "Religion", "Occupation"
+ */
+function isStandaloneField(title, keyword) {
+  const t = (title || '').toLowerCase().replace(/[?]/g, '').trim();
+  const standalonePatterns = [
+    new RegExp('^' + keyword + '$', 'i'),
+    new RegExp('^your\s+' + keyword + '$', 'i'),
+    new RegExp('^' + keyword + '\s*\?$', 'i'),
+    new RegExp('^what\s+is\s+your\s+' + keyword + '$', 'i'),
+  ];
+  return standalonePatterns.some(p => p.test(t));
+}
+
 /**
  * Smart occupation/employment field detection
  * Uses context-aware matching to avoid false positives like "comments about work"
@@ -1548,6 +1744,8 @@ function isLikelyOccupationField(title) {
     }
   }
 
+    // Standalone keyword check
+  if (isStandaloneField(t, "occupation") || isStandaloneField(t, "job")) return true;
   return false;
 }
 
@@ -1682,6 +1880,7 @@ function isLikelySchoolField(title) {
   }
 
   // Strong school patterns
+  if (isStandaloneField(t, "school") || isStandaloneField(t, "university") || isStandaloneField(t, "college")) return true;
   if (/\b(school|university|college|campus|institution)\b/i.test(t)) {
     // With possessive or question indicators
     if (/\byour\b|\battend\b|\benrolled\b|\bschool\s+where\b|\bat\b|\bwhich\b|\bwhat\b/i.test(t)) return true;
@@ -1716,6 +1915,7 @@ function isLikelyCourseField(title) {
   }
 
   // Strong course patterns
+  if (isStandaloneField(t, "course") || isStandaloneField(t, "program") || isStandaloneField(t, "strand")) return true;
   if (/\b(course|program|degree|strand|track)\b/i.test(t)) {
     if (/\byour\b|\benrolled\b|\bmajor\b|\bminor\b|\bstudying\b|\bwhich\b|\bwhat\b|\bwhere\b/i.test(t)) return true;
     if (/\bcourse\s+(of\s+)?(stud|major|program)\b/i.test(t)) return true;
@@ -1748,6 +1948,7 @@ function isLikelyYearLevelField(title) {
   }
 
   // Strong year level patterns
+  if (isStandaloneField(t, "year level") || isStandaloneField(t, "grade level") || isStandaloneField(t, "section")) return true;
   if (/\b(year\s*level|grade\s*level|academic\s*year|section|year\s+of\s+study)\b/i.test(t)) return true;
   if (/\b(what|which)\s+(year|grade)\s+(are\s+you|level)\b/i.test(t)) return true;
   if (/\byour\s+(current\s+)?(year|grade)\b/i.test(t)) return true;
@@ -1777,6 +1978,7 @@ function isLikelyReligionField(title) {
   }
 
   // Strong religion patterns
+  if (isStandaloneField(t, "religion")) return true;
   if (/\breligion\b/i.test(t)) {
     if (/\byour\b|\bwhat\b|\bwhich\b|\bplease\b|\bselect\b|\bidentify\b/i.test(t)) return true;
     if (/\byou\s+(belong|follow|practice|identify)\b/i.test(t)) return true;
@@ -1844,6 +2046,7 @@ function isLikelyNationalityField(title) {
   }
 
   // Strong nationality patterns
+  if (isStandaloneField(t, "nationality") || isStandaloneField(t, "citizenship")) return true;
   if (/\b(nationality|citizenship)\b/i.test(t)) {
     if (/\byour\b|\bwhat\b|\bwhich\b|\bplease\b|\bselect\b|\bidentify\b/i.test(t)) return true;
     if (/\byou\s+(hold|have|are)\b.*\b(citizen|national)\b/i.test(t)) return true;
@@ -1866,6 +2069,7 @@ function isLikelyEthnicityField(title) {
   if (/\byour\s+etchnic\s+(background)\b/i.test(t) && /^\s*what\b/i.test(t)) return true;
 
   // Strong ethnicity patterns
+  if (isStandaloneField(t, "ethnicity") || isStandaloneField(t, "race")) return true;
   if (/\b(ethnic\s*(origin|ity)|ethnicity)\b/i.test(t)) return true;
   if (/\brace\s+(of\s+)?(the\s+)?participant\b/i.test(t)) return true;
   if (/\bwhat\s+is\s+your\s+(racial|ethnic)\b/i.test(t)) return true;
@@ -1883,6 +2087,7 @@ function isLikelyAncestryField(title) {
   const t = title.toLowerCase();
 
   // Strong ancestry patterns
+  if (isStandaloneField(t, "ancestry") || isStandaloneField(t, "heritage")) return true;
   if (/\b(ancestry|ancestral|ancestors|heritage|lineage)\b/i.test(t)) {
     if (/\byour\b|\bwhat\b|\bwhich\b|\bplease\b|\bdescribe\b/i.test(t)) return true;
     if (/\bwhere\s+do\s+your\s+(ancestors?|family)\s+come\s+from\b/i.test(t)) return true;
@@ -2175,6 +2380,8 @@ function detectNamePart(part) {
 function detectAddressQuestions(questions) {
   const detected = [];
   questions.forEach((q, idx) => {
+    // Only detect for text-based question types (short answer, paragraph)
+    if (!isSmartTextQuestion(q)) return;
     const title = normalizeNameTitle(q.title || '');
     const rawTitle = q.title || '';
     const titleLower = title.toLowerCase();
@@ -3255,6 +3462,8 @@ const NATIONALITIES_WITH_ISH = ['British', 'Irish', 'Swedish', 'Polish', 'Spanis
 function detectNationalityQuestions(questions) {
   const detected = [];
   questions.forEach((q, idx) => {
+    // Only detect for text-based question types (short answer, paragraph)
+    if (!isSmartTextQuestion(q)) return;
     const title = normalizeNameTitle(q.title || '');
     const base = { questionIndex: idx, questionId: q.id, title: q.title };
     if (/\b(nationality|citizenship|citizen|country\s+of\s+(birth|citizenship|origin)|what\s+is\s+your\s+(nationality|citizenship))\b/i.test(title)) {

@@ -32,6 +32,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'CLEAR_HISTORY':
       chrome.storage.local.remove('history');
       break;
+
+    case 'CHECK_GIT_EXISTS':
+      // Check if .git folder exists in the extension directory
+      // Try fetching the .git/HEAD file - if it exists, git is initialized
+      const extensionUrl = chrome.runtime.getURL('');
+      fetch(`${extensionUrl}.git/HEAD`)
+        .then(response => {
+          sendResponse({ hasGit: response.ok });
+        })
+        .catch(() => {
+          sendResponse({ hasGit: false });
+        });
+      return true;
   }
 });
 

@@ -2179,7 +2179,7 @@
 }
 
 .spammerz-name-hint::before {
-  content: 'â„¹';
+  content: 'ℹ';
   font-size: 12px;
 }
 
@@ -2201,7 +2201,11 @@
 }
 
 .spammerz-name-locked-value::before {
-  content: 'ðŸ”—';
+  content: '';
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2339ff14' stroke-width='2'%3E%3Crect x='3' y='11' width='18' height='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px;
   font-size: 14px;
 }
 
@@ -2659,4 +2663,159 @@
 .spammerz-sandbox::-webkit-scrollbar-thumb:hover,
 .spammerz-submission-panel .spammerz-config-questions::-webkit-scrollbar-thumb:hover {
   background: var(--spammerz-border-light);
+}
+
+/* === Update Modal === */
+.spammerz-update-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  padding: 24px;
+  animation: modalFadeIn 0.2s ease;
+}
+
+.spammerz-update-card {
+  width: min(440px, 92vw);
+  background: var(--spammerz-card);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  animation: modalSlideIn 0.25s ease;
+}
+
+.spammerz-update-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, rgba(57, 255, 20, 0.1) 0%, transparent 100%);
+  border-bottom: 1px solid var(--spammerz-border);
+}
+
+.spammerz-update-icon {
+  font-size: 24px;
+  animation: spin 2s linear infinite;
+  color: var(--spammerz-accent);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spammerz-update-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--spammerz-text);
+}
+
+.spammerz-update-body {
+  padding: 20px 24px;
+}
+
+.spammerz-update-version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--spammerz-text-secondary);
+  margin-bottom: 12px;
+}
+
+.spammerz-update-version strong {
+  color: var(--spammerz-text);
+}
+
+.spammerz-update-new {
+  color: var(--spammerz-accent) !important;
+}
+
+.spammerz-update-arrow {
+  color: var(--spammerz-text-muted);
+}
+
+.spammerz-update-reason {
+  font-size: 13px;
+  color: var(--spammerz-text-muted);
+  margin: 0;
+}
+
+.spammerz-update-status {
+  font-size: 13px;
+  color: var(--spammerz-text);
+  margin: 0 0 16px;
+}
+
+.spammerz-update-warning {
+  font-size: 13px;
+  color: var(--spammerz-warning);
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 8px;
+}
+
+.spammerz-update-instructions {
+  background: var(--spammerz-surface);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 8px;
+}
+
+.spammerz-update-instructions p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--spammerz-text);
+}
+
+.spammerz-update-instructions p strong {
+  color: var(--spammerz-text);
+}
+
+.spammerz-update-instructions ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--spammerz-text-secondary);
+}
+
+.spammerz-update-instructions li {
+  margin-bottom: 6px;
+}
+
+.spammerz-update-instructions code {
+  background: var(--spammerz-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: var(--spammerz-accent);
+}
+
+.spammerz-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--spammerz-border);
+}
+
+.spammerz-update-actions .spammerz-btn-outline {
+  padding: 10px 20px;
+  min-width: 80px;
+}
+
+.spammerz-update-actions .spammerz-btn-primary {
+  padding: 10px 20px;
+  min-width: 120px;
+  white-space: nowrap;
 }
