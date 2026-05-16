@@ -36,6 +36,23 @@ git clone https://github.com/ZheyUse/gspammerz.git
 
 Click the puzzle piece icon in Chrome's toolbar → find SpammerZ → click the pin icon to keep it visible.
 
+### 4. (Optional) Enable Native Git Updates
+
+If you cloned the repository, SpammerZ can update itself from the real repo root using a Chrome Native Messaging helper.
+
+1. Open `chrome://extensions/`
+2. Copy the SpammerZ extension ID
+3. Run:
+
+```powershell
+.\spammerz\native\install-host.cmd
+```
+
+4. Paste the extension ID when asked
+5. Reload the unpacked extension in `chrome://extensions/`
+
+After setup, the update modal can run Git from the parent `gspammerz` folder even though Chrome loaded only the `gspammerz/spammerz` extension folder.
+
 ---
 
 ## What is SpammerZ?
@@ -52,6 +69,7 @@ SpammerZ is a full automation suite, not just a bulk submitter. It blends smart 
 
 ### Core Capabilities
 
+- **Native Git updater** - optional local helper can pull updates from the cloned repository root
 - **No server needed** — runs entirely in your browser
 - **Reliable parsing** — extracts form data from Google's own internal JSON (FB_PUBLIC_LOAD_DATA_)
 - **All question types** — short text, paragraph, multiple choice, checkbox, dropdown, linear scale, date, time, grid, checkbox grid
@@ -100,6 +118,7 @@ Auto-detects education fields:
 
 ### Weights, Sliders, and Randomization
 
+- **Grid row weighting** - Google Forms grids get separate row cards, each with its own randomizer and answer-column sliders
 - **Slider-based weighting** — per-option sliders with live percentage readout and total weight summary
 - **Two weighting modes** — Plan (pre-calculated distribution) or Dice (independent random rolls)
 - **Randomize weights** — flexible randomization options:
@@ -116,6 +135,46 @@ Auto-detects education fields:
 - **Stop anytime** — halt submissions mid-run with a single click
 - **Enable/Disable toggle** — hide the UI to use the form normally
 - **High-volume runs** — scale submissions up to 10,000 per run
+
+---
+
+## Updates
+
+SpammerZ checks GitHub for updates when the panel loads:
+
+- If the remote manifest version is newer, it shows a version update.
+- If the version is the same but new commits exist, it shows a commit update list.
+- If the native updater is installed, **Update Now** asks the local helper to run Git.
+- If the helper is not installed, the modal shows the extension ID and native host setup path.
+
+### Native Updater Behavior
+
+The native updater is registered as:
+
+```text
+com.zheys.spammerz.updater
+```
+
+It runs from the parent repository root:
+
+```text
+gspammerz/
+```
+
+The helper uses:
+
+```bash
+git fetch --prune
+git pull --ff-only
+```
+
+It will refuse to update if the working tree has local changes. This protects your edits from being overwritten.
+
+To remove the helper:
+
+```powershell
+.\spammerz\native\uninstall-host.cmd
+```
 
 ---
 
@@ -215,6 +274,8 @@ SpammerZ:
 - Does NOT send data to any server (except your form submissions to Google)
 - Does NOT track or log your submissions
 - Does NOT require any permissions beyond what's necessary
+- Checks GitHub only for extension version/commit updates
+- Uses the optional native updater only after you install the local host
 
 Your submissions go directly to Google Forms' servers, just like a normal form submission.
 
@@ -228,6 +289,8 @@ Your submissions go directly to Google Forms' servers, just like a normal form s
 | reCAPTCHA | Detected forms may block submissions |
 | No-cors responses | Cannot confirm 100% if submission succeeded |
 | Rate limiting | Google may throttle rapid submissions |
+| Native updater not installed | The browser cannot run Git until `spammerz/native/install-host.cmd` is registered |
+| Dirty Git working tree | Auto-update is blocked until local changes are committed or stashed |
 | Email collection enabled | Forms with "Collect email addresses" will return 400 errors — SpammerZ detects and warns about this |
 
 ### Resolving "Email Collection Enabled" Errors
@@ -257,26 +320,33 @@ When a form has **"Collect email addresses"** enabled, Google requires authentic
 
 ```
 spammerz/
-├── manifest.json              ← Chrome extension config
-├── content/
-│   └── content.js             ← Main logic (all-in-one)
-├── ui/
-│   ├── panel.js               ← UI components
-│   └── panel.css              ← Dark neon styling
-├── Names/
-│   ├── FirstName/
-│   │   └── firstname.md       ← Filipino first names
-│   └── LastName/
-│       └── lastname.md        ← Filipino last names
-├── options/
-│   ├── courses.md             ← Courses/strands list
-│   └── profession.md           ← Professions list
-├── background/
-│   └── service-worker.js      ← Background persistence
-└── icons/
-    ├── icon16.png
-    ├── icon48.png
-    └── icon128.png
+  manifest.json              - Chrome extension config
+  content/
+    content.js               - Main logic (all-in-one)
+  ui/
+    panel.js                 - UI components
+    panel.css                - Dark neon styling
+  Names/
+    FirstName/
+      firstname.md           - Filipino first names
+    LastName/
+      lastname.md            - Filipino last names
+  options/
+    courses.md               - Courses/strands list
+    profession.md            - Professions list
+  background/
+    service-worker.js        - Background persistence and native updater bridge
+  native/
+    host.js                  - Native Git updater host
+    spammerz-native-host.cmd - Native messaging command wrapper
+    install-host.cmd         - Windows installer wrapper
+    install-host.ps1         - Registers Chrome native messaging host
+    uninstall-host.cmd       - Windows uninstall wrapper
+    uninstall-host.ps1       - Removes native messaging registration
+  icons/
+    icon16.png
+    icon48.png
+    icon128.png
 ```
 
 ---
@@ -296,6 +366,16 @@ spammerz/
 ### Error: "Could not parse form"
 - The form may require login (not public)
 - Try opening the form in an incognito window
+
+### Native updater says it is not installed
+1. Open `chrome://extensions/`
+2. Copy the SpammerZ extension ID
+3. Run `spammerz/native/install-host.cmd`
+4. Paste the extension ID
+5. Reload the unpacked extension
+
+### Native update is blocked by local changes
+The updater runs `git pull --ff-only` and refuses to continue when the working tree is dirty. Commit, stash, or remove local changes first, then click **Update Now** again.
 
 ---
 
