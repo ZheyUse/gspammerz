@@ -24,62 +24,116 @@ async function checkForUpdates() {
     const remoteManifest = await manifestRes.json();
     const remoteVersion = remoteManifest.version;
 
-    // 2. Check version mismatch
-    let reason = null;
-    if (remoteVersion !== localVersion) {
-      reason = 'version';
-    } else {
-      // 3. Check for new commits
-      const commitsRes = await fetch(`${COMMITS_API_URL}?per_page=1`);
-      if (commitsRes.ok) {
-        const commits = await commitsRes.json();
-        if (commits.length > 0 && typeof chrome !== 'undefined' && chrome.storage) {
-          const latestCommitSha = commits[0].sha;
-          const stored = await new Promise((resolve) => {
-            chrome.storage.local.get(['lastKnownCommit'], resolve);
-          });
-          const lastKnownCommit = stored?.lastKnownCommit;
-
-          if (!lastKnownCommit || latestCommitSha !== lastKnownCommit) {
-            reason = 'commits';
-            chrome.storage.local.set({ lastKnownCommit: latestCommitSha });
-          }
-        }
-      }
+    if (isRemoteVersionNewer(remoteVersion, localVersion)) {
+      showUpdateModal({ remoteVersion, localVersion, type: 'version' });
+      return;
     }
 
-    if (reason) {
-      showUpdateModal(remoteVersion, localVersion, reason);
+    if (remoteVersion === localVersion) {
+      const commitUpdate = await checkForCommitUpdates();
+      if (commitUpdate?.hasNewCommits) {
+        showUpdateModal({
+          remoteVersion,
+          localVersion,
+          type: 'commits',
+          commits: commitUpdate.commits,
+          latestCommitSha: commitUpdate.latestCommitSha,
+        });
+      }
     }
   } catch (error) {
     console.error('[SpammerZ] Update check failed:', error);
   }
 }
 
+async function checkForCommitUpdates() {
+  if (!window.chrome?.storage?.local) return null;
+
+  const commitsRes = await fetch(`${COMMITS_API_URL}?per_page=5`);
+  if (!commitsRes.ok) return null;
+
+  const commits = await commitsRes.json();
+  if (!Array.isArray(commits) || commits.length === 0) return null;
+
+  const latestCommitSha = commits[0]?.sha;
+  if (!latestCommitSha) return null;
+
+  const stored = await new Promise((resolve) => {
+    chrome.storage.local.get(['lastSeenRemoteCommit'], resolve);
+  });
+  const lastSeenRemoteCommit = stored?.lastSeenRemoteCommit;
+
+  if (!lastSeenRemoteCommit) {
+    chrome.storage.local.set({ lastSeenRemoteCommit: latestCommitSha });
+    return null;
+  }
+
+  if (lastSeenRemoteCommit === latestCommitSha) return null;
+
+  const newCommits = [];
+  for (const commit of commits) {
+    if (commit.sha === lastSeenRemoteCommit) break;
+    newCommits.push(commit);
+  }
+
+  return {
+    hasNewCommits: newCommits.length > 0,
+    commits: newCommits.length ? newCommits : commits.slice(0, 5),
+    latestCommitSha,
+  };
+}
+
+function isRemoteVersionNewer(remoteVersion, localVersion) {
+  const remote = parseVersionParts(remoteVersion);
+  const local = parseVersionParts(localVersion);
+  for (let i = 0; i < Math.max(remote.length, local.length); i++) {
+    const r = remote[i] || 0;
+    const l = local[i] || 0;
+    if (r > l) return true;
+    if (r < l) return false;
+  }
+  return false;
+}
+
+function parseVersionParts(version) {
+  return String(version || '0')
+    .replace(/^v/i, '')
+    .split('.')
+    .map(part => Number.parseInt(part, 10))
+    .map(part => Number.isFinite(part) ? part : 0);
+}
+
 /**
  * Show update available modal
  */
-function showUpdateModal(remoteVersion, localVersion, reason) {
+function showUpdateModal({ remoteVersion, localVersion, type = 'version', commits = [], latestCommitSha = '' }) {
   const container = document.getElementById('spz-modal-container');
-
-  const reasonText = reason === 'commits'
-    ? '<p class="spammerz-update-reason">New commits available (version unchanged)</p>'
-    : '<p class="spammerz-update-reason">A newer version is available</p>';
+  const isCommitUpdate = type === 'commits';
+  const commitItems = commits.slice(0, 5).map(commit => {
+    const message = commit?.commit?.message?.split('\n')[0] || 'Untitled commit';
+    const sha = commit?.sha ? commit.sha.slice(0, 7) : '';
+    return `<li><code>${escHtml(sha)}</code> ${escHtml(message)}</li>`;
+  }).join('');
 
   container.innerHTML = `
     <div class="spammerz-modal spammerz-update-modal-overlay">
       <div class="spammerz-update-card">
         <div class="spammerz-update-header">
           <span class="spammerz-update-icon">&#8635;</span>
-          <h2>Update Available</h2>
+          <h2>${isCommitUpdate ? 'New Update' : 'Update Available'}</h2>
         </div>
         <div class="spammerz-update-body">
           <p class="spammerz-update-version">
-            Current: <strong>v${escHtml(localVersion)}</strong>
-            <span class="spammerz-update-arrow">&#8594;</span>
-            Latest: <strong class="spammerz-update-new">v${escHtml(remoteVersion)}</strong>
+            Version: <strong>v${escHtml(localVersion)}</strong>
+            ${!isCommitUpdate ? `<span class="spammerz-update-arrow">&#8594;</span> Latest: <strong class="spammerz-update-new">v${escHtml(remoteVersion)}</strong>` : ''}
           </p>
-          ${reasonText}
+          ${isCommitUpdate
+            ? `<p class="spammerz-update-reason">New commits are available for this version.</p>
+               <div class="spammerz-update-instructions">
+                 <p><strong>New Update:</strong></p>
+                 <ol>${commitItems}</ol>
+               </div>`
+            : '<p class="spammerz-update-reason">A newer version is available</p>'}
         </div>
         <div class="spammerz-update-actions">
           <button class="spammerz-btn-outline" id="spz-update-later">Later</button>
@@ -90,63 +144,186 @@ function showUpdateModal(remoteVersion, localVersion, reason) {
   `;
 
   document.getElementById('spz-update-later')?.addEventListener('click', () => {
+    markCommitUpdateSeen(latestCommitSha);
     container.innerHTML = '';
   });
 
   document.getElementById('spz-update-now')?.addEventListener('click', async () => {
-    const hasGit = await checkGitExists();
-    showReloadModal(hasGit, remoteVersion, localVersion);
+    markCommitUpdateSeen(latestCommitSha);
+    await runNativeUpdateFlow({ remoteVersion, localVersion, updateType: type });
   });
 }
 
-/**
- * Check if .git folder exists in the extension directory
- * Returns true only if git is available for pulling updates
- */
-async function checkGitExists() {
+function markCommitUpdateSeen(latestCommitSha) {
+  if (!latestCommitSha || !window.chrome?.storage?.local) return;
+  chrome.storage.local.set({ lastSeenRemoteCommit: latestCommitSha });
+}
+
+function sendRuntimeMessage(message) {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: 'CHECK_GIT_EXISTS' }, (response) => {
-      resolve(response?.hasGit || false);
+    if (!window.chrome?.runtime?.sendMessage) {
+      resolve({ ok: false, error: 'Chrome runtime messaging is not available.' });
+      return;
+    }
+
+    chrome.runtime.sendMessage(message, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        resolve({ ok: false, error: error.message || 'Runtime message failed.' });
+        return;
+      }
+
+      resolve(response || { ok: false, error: 'No response from extension background worker.' });
     });
+  });
+}
+
+async function runNativeUpdateFlow({ remoteVersion, localVersion, updateType }) {
+  showNativeUpdateProgress(localVersion);
+
+  const result = await sendRuntimeMessage({
+    type: 'RUN_NATIVE_UPDATER',
+    remoteVersion,
+    updateType,
+  });
+
+  if (result?.ok) {
+    showNativeUpdateResult({
+      localVersion,
+      remoteVersion,
+      result,
+    });
+    return;
+  }
+
+  showNativeUpdateUnavailable({
+    localVersion,
+    remoteVersion,
+    error: result?.error || 'Native updater failed.',
+    detail: result?.detail || '',
+    installed: result?.installed,
+    steps: result?.steps,
+    extensionId: window.chrome?.runtime?.id || '',
+  });
+}
+
+function showNativeUpdateProgress(localVersion) {
+  const container = document.getElementById('spz-modal-container');
+  container.innerHTML = `
+    <div class="spammerz-modal spammerz-update-modal-overlay">
+      <div class="spammerz-update-card">
+        <div class="spammerz-update-header">
+          <span class="spammerz-update-icon">&#8635;</span>
+          <h2>Updating SpammerZ</h2>
+        </div>
+        <div class="spammerz-update-body">
+          <p class="spammerz-update-status">
+            Running native updater for <strong>v${escHtml(localVersion)}</strong>...
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showNativeUpdateResult({ localVersion, remoteVersion, result }) {
+  const container = document.getElementById('spz-modal-container');
+  const lines = Array.isArray(result.steps) ? result.steps : [];
+  const lineItems = lines.map(line => `<li>${escHtml(line)}</li>`).join('');
+  const changed = result.before && result.after && result.before !== result.after;
+
+  container.innerHTML = `
+    <div class="spammerz-modal spammerz-update-modal-overlay">
+      <div class="spammerz-update-card">
+        <div class="spammerz-update-header">
+          <span class="spammerz-update-icon">&#10003;</span>
+          <h2>${changed ? 'Update Pulled' : 'Already Up To Date'}</h2>
+        </div>
+        <div class="spammerz-update-body">
+          <p class="spammerz-update-version">
+            Version: <strong>v${escHtml(localVersion)}</strong>
+            ${remoteVersion ? `<span class="spammerz-update-arrow">&#8594;</span> Latest: <strong class="spammerz-update-new">v${escHtml(remoteVersion)}</strong>` : ''}
+          </p>
+          <p class="spammerz-update-status">${escHtml(result.message || 'Native updater completed.')}</p>
+          ${lineItems ? `<div class="spammerz-update-instructions"><ol>${lineItems}</ol></div>` : ''}
+        </div>
+        <div class="spammerz-update-actions">
+          <button class="spammerz-btn-outline" id="spz-update-close">Close</button>
+          <button class="spammerz-btn-outline" id="spz-open-extensions">Open Extensions</button>
+          <button class="spammerz-btn-primary" id="spz-reload-extension">Reload Extension</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('spz-update-close')?.addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+
+  document.getElementById('spz-open-extensions')?.addEventListener('click', () => {
+    window.location.href = CHROME_EXTENSIONS_URL;
+  });
+
+  document.getElementById('spz-reload-extension')?.addEventListener('click', () => {
+    sendRuntimeMessage({ type: 'RELOAD_EXTENSION' });
+    container.innerHTML = '';
+  });
+}
+
+function showNativeUpdateUnavailable({ localVersion, remoteVersion, error, detail, installed, steps, extensionId }) {
+  const container = document.getElementById('spz-modal-container');
+  const needsInstall = installed === false;
+  const stepItems = Array.isArray(steps) ? steps.map(step => `<li>${escHtml(step)}</li>`).join('') : '';
+
+  container.innerHTML = `
+    <div class="spammerz-modal spammerz-update-modal-overlay">
+      <div class="spammerz-update-card">
+        <div class="spammerz-update-header">
+          <span class="spammerz-update-icon">&#9888;</span>
+          <h2>${needsInstall ? 'Native Updater Needed' : 'Native Update Blocked'}</h2>
+        </div>
+        <div class="spammerz-update-body">
+          <p class="spammerz-update-version">
+            Version: <strong>v${escHtml(localVersion)}</strong>
+            ${remoteVersion ? `<span class="spammerz-update-arrow">&#8594;</span> Latest: <strong class="spammerz-update-new">v${escHtml(remoteVersion)}</strong>` : ''}
+          </p>
+          <p class="spammerz-update-status">${escHtml(error)}</p>
+          ${detail ? `<p class="spammerz-update-status">${escHtml(detail)}</p>` : ''}
+          ${stepItems ? `<div class="spammerz-update-instructions"><ol>${stepItems}</ol></div>` : ''}
+          ${needsInstall
+            ? `<div class="spammerz-update-instructions">
+                 <p><strong>Extension ID:</strong> <code>${escHtml(extensionId || 'unknown')}</code></p>
+                 <p>Install the local updater host from <code>spammerz/native/install-host.cmd</code>, then click Update Now again.</p>
+               </div>`
+            : ''}
+        </div>
+        <div class="spammerz-update-actions">
+          <button class="spammerz-btn-outline" id="spz-native-cancel">Cancel</button>
+          <button class="spammerz-btn-outline" id="spz-open-extensions">Open Extensions</button>
+          <button class="spammerz-btn-primary" id="spz-show-manual-update">Manual Update</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('spz-native-cancel')?.addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+
+  document.getElementById('spz-open-extensions')?.addEventListener('click', () => {
+    window.location.href = CHROME_EXTENSIONS_URL;
+  });
+
+  document.getElementById('spz-show-manual-update')?.addEventListener('click', () => {
+    showReloadModal(remoteVersion, localVersion);
   });
 }
 
 /**
  * Show reload/update modal based on git availability
  */
-function showReloadModal(hasGit, remoteVersion, localVersion) {
+function showReloadModal(remoteVersion, localVersion) {
   const container = document.getElementById('spz-modal-container');
-  let bodyContent = '';
-
-  if (hasGit) {
-    bodyContent = `
-      <p class="spammerz-update-status">
-        Since your extension has .git, you can pull the latest changes.
-      </p>
-      <div class="spammerz-update-instructions">
-        <p><strong>To update:</strong></p>
-        <ol>
-          <li>Open terminal in your SpammerZ project folder</li>
-          <li>Run <code>git pull</code></li>
-          <li>Click OK to reload the extension</li>
-        </ol>
-      </div>
-    `;
-  } else {
-    bodyContent = `
-      <p class="spammerz-update-warning">
-        Git not found. This extension was likely downloaded as a .zip file.
-      </p>
-      <div class="spammerz-update-instructions">
-        <p><strong>To update:</strong></p>
-        <ol>
-          <li>Click "Update Now" to go to GitHub releases</li>
-          <li>Download the latest version</li>
-          <li>Extract and reload in Chrome Extensions</li>
-        </ol>
-      </div>
-    `;
-  }
 
   container.innerHTML = `
     <div class="spammerz-modal spammerz-update-modal-overlay">
@@ -156,13 +333,28 @@ function showReloadModal(hasGit, remoteVersion, localVersion) {
           <h2>Update SpammerZ</h2>
         </div>
         <div class="spammerz-update-body">
-          ${bodyContent}
+          <p class="spammerz-update-status">
+            Chrome cannot inspect parent folders outside the loaded unpacked extension directory.
+          </p>
+          <div class="spammerz-update-instructions">
+            <p><strong>If you cloned this repo:</strong></p>
+            <ol>
+              <li>Open terminal in the parent project folder: <code>gspammerz</code></li>
+              <li>Run <code>git pull</code></li>
+              <li>Reload the unpacked extension in <code>chrome://extensions</code></li>
+            </ol>
+            <p><strong>If you downloaded a release:</strong></p>
+            <ol>
+              <li>Click GitHub Releases</li>
+              <li>Download the latest version</li>
+              <li>Extract and reload the unpacked extension</li>
+            </ol>
+          </div>
         </div>
         <div class="spammerz-update-actions">
           <button class="spammerz-btn-outline" id="spz-reload-cancel">Cancel</button>
-          <button class="spammerz-btn-primary" id="spz-reload-confirm">
-            ${hasGit ? 'OK' : 'Update Now'}
-          </button>
+          <button class="spammerz-btn-outline" id="spz-open-extensions">Open Extensions</button>
+          <button class="spammerz-btn-primary" id="spz-open-releases">GitHub Releases</button>
         </div>
       </div>
     </div>
@@ -172,13 +364,13 @@ function showReloadModal(hasGit, remoteVersion, localVersion) {
     container.innerHTML = '';
   });
 
-  document.getElementById('spz-reload-confirm')?.addEventListener('click', () => {
-    if (hasGit) {
-      window.location.href = CHROME_EXTENSIONS_URL;
-    } else {
-      window.open(GITHUB_RELEASES_URL, '_blank');
-      container.innerHTML = '';
-    }
+  document.getElementById('spz-open-extensions')?.addEventListener('click', () => {
+    window.location.href = CHROME_EXTENSIONS_URL;
+  });
+
+  document.getElementById('spz-open-releases')?.addEventListener('click', () => {
+    window.open(GITHUB_RELEASES_URL, '_blank');
+    container.innerHTML = '';
   });
 }
 

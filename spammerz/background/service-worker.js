@@ -3,10 +3,33 @@
  * Handles extension lifecycle and state persistence
  */
 
+const SPAMMERZ_NATIVE_HOST = 'com.zheys.spammerz.updater';
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   console.log('[SpammerZ] Extension installed:', details.reason);
 });
+
+function sendNativeUpdaterMessage(payload) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(SPAMMERZ_NATIVE_HOST, payload, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        resolve({
+          ok: false,
+          installed: false,
+          error: error.message || 'Native updater is not available.',
+        });
+        return;
+      }
+
+      resolve(response || {
+        ok: false,
+        error: 'Native updater returned an empty response.',
+      });
+    });
+  });
+}
 
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -33,18 +56,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.storage.local.remove('history');
       break;
 
-    case 'CHECK_GIT_EXISTS':
-      // Check if .git folder exists in the extension directory
-      // Try fetching the .git/HEAD file - if it exists, git is initialized
-      const extensionUrl = chrome.runtime.getURL('');
-      fetch(`${extensionUrl}.git/HEAD`)
-        .then(response => {
-          sendResponse({ hasGit: response.ok });
-        })
-        .catch(() => {
-          sendResponse({ hasGit: false });
-        });
+    case 'NATIVE_UPDATER_STATUS':
+      sendNativeUpdaterMessage({
+        action: 'status',
+        extensionId: chrome.runtime.id,
+        extensionVersion: chrome.runtime.getManifest().version,
+      }).then(sendResponse);
       return true;
+
+    case 'RUN_NATIVE_UPDATER':
+      sendNativeUpdaterMessage({
+        action: 'update',
+        extensionId: chrome.runtime.id,
+        extensionVersion: chrome.runtime.getManifest().version,
+        remoteVersion: message.remoteVersion || '',
+        updateType: message.updateType || '',
+      }).then(sendResponse);
+      return true;
+
+    case 'RELOAD_EXTENSION':
+      sendResponse({ ok: true });
+      setTimeout(() => chrome.runtime.reload(), 100);
+      return true;
+
   }
 });
 

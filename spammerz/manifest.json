@@ -7,16 +7,23 @@
 
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "nativeMessaging"
   ],
 
   "host_permissions": [
     "*://docs.google.com/forms/*",
+    "https://raw.githubusercontent.com/*",
+    "https://api.github.com/*",
     "https://api.country.is/*",
     "https://api.geocoded.me/*",
     "https://psgc.cloud/*",
     "https://api.zippopotam.us/*"
   ],
+
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
 
   "content_scripts": [
     {
