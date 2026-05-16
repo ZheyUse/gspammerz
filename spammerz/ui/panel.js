@@ -33,10 +33,12 @@ async function checkForUpdates() {
       const commitsRes = await fetch(`${COMMITS_API_URL}?per_page=1`);
       if (commitsRes.ok) {
         const commits = await commitsRes.json();
-        if (commits.length > 0) {
+        if (commits.length > 0 && typeof chrome !== 'undefined' && chrome.storage) {
           const latestCommitSha = commits[0].sha;
-          const stored = await new Promise(r => chrome.storage.local.get(['lastKnownCommit'], r));
-          const lastKnownCommit = stored.lastKnownCommit;
+          const stored = await new Promise((resolve) => {
+            chrome.storage.local.get(['lastKnownCommit'], resolve);
+          });
+          const lastKnownCommit = stored?.lastKnownCommit;
 
           if (!lastKnownCommit || latestCommitSha !== lastKnownCommit) {
             reason = 'commits';
@@ -783,17 +785,17 @@ function attachAutoNameModalListeners(formData, updateState) {
       const detectedFields = detectNameQuestions(window.spammerzFormData.allQuestions);
 
       // Build the config
-      const canEnable = firstNames.length > 0 && lastNames.length > 0;
       const prevEnabled = window.spammerzState.autoNameConfig?.enabled ?? true;
+      const previousSources = window.spammerzState.autoNameConfig?.sources || {};
       const config = {
-        enabled: prevEnabled && canEnable,
+        enabled: prevEnabled,
         fields: detectedFields,
         sources: {
-          firstNames,
-          lastNames,
+          firstNames: firstNames.length ? firstNames : (previousSources.firstNames || []),
+          lastNames: lastNames.length ? lastNames : (previousSources.lastNames || []),
         },
         patterns: selectedPatterns.length > 0 ? selectedPatterns : ['first_last'],
-        extensionIdx: 0,
+        extensionIdx: window.spammerzState.autoNameConfig?.extensionIdx || 0,
         includeExtension: includeExtensionNext,
         namesLoadedFromMd: true,
       };
@@ -1406,6 +1408,7 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
   const isTypedQuestion = ['short_text', 'paragraph', 'date', 'time'].includes(question.type) || isBirthdateField;
   const isConsentField = smartBinding?.fieldType === 'consent';
   const isSmartField = !!smartBinding && !isAgeField && (isTypedQuestion || isConsentField || smartBinding?.fieldType === 'date');
+  const isGridQuestion = question.type === 'grid' || question.type === 'checkbox_grid';
 
   const nameBindingLabel = nameBinding
     ? getNameBindingDisplayLabel(nameBinding, nameFieldLabels)
@@ -1415,7 +1418,8 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
   let headerHtml = `<div class="spammerz-config-item-title">${escHtml(question.title)}</div>`;
 
   // Check if extension field but extension is disabled
-  const isExtensionDisabled = nameBinding?.fieldType === 'extension' && !cfg?.includeExtension;
+  const isExtensionDisabled = nameBinding?.fieldType === 'extension'
+    && !window.spammerzState?.autoNameConfig?.includeExtension;
 
   if (isNameField || isAddressField) {
     const typeLabel = getQuestionDisplayType(question, isBirthdateField ? 'date' : question.type);
@@ -1456,6 +1460,11 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
     headerHtml += `<div class="spammerz-config-item-type">${typeLabel}</div>`;
     item.innerHTML = headerHtml;
 
+    if (isGridQuestion) {
+      item.appendChild(createGridWeightsConfig(question, cfg, qIdx));
+      return item;
+    }
+
     if (isAgeField) {
       const ageConfig = normalizeAgeConfig(cfg.ageConfig);
       const agePanel = document.createElement('div');
@@ -1490,25 +1499,15 @@ function createWeightedQuestionConfig(question, cfg, qIdx) {
     }
 
     // Add weight inputs for each option
-    if (question.options.length > 0 || question.type === 'linear_scale') {
+    if (getConfigurableOptionCount(question, cfg) > 0) {
       const weightsList = document.createElement('div');
       weightsList.className = 'spammerz-weights-list';
 
       // Get options to show
-      let options = [...question.options];
+      let options = getQuestionAnswerOptions(question, cfg);
       if (isTypedQuestion && isSmartField && (smartBinding.fieldType === 'gender' || smartBinding.fieldType === 'sex')) {
         options = getConfiguredGenderOptions(cfg, smartBinding.fieldType);
         syncConfigValuesToOptions(cfg, options);
-      }
-
-      // For linear scale, generate options from scale range
-      if (question.type === 'linear_scale') {
-        const scaleMin = Number.isFinite(question.scaleMin) ? question.scaleMin : 1;
-        const scaleMax = Number.isFinite(question.scaleMax) ? question.scaleMax : Math.max(scaleMin, 5);
-        options = [];
-        for (let i = scaleMin; i <= scaleMax; i++) {
-          options.push(String(i));
-        }
       }
 
       // Add header with randomize button for this question's weights
@@ -1584,6 +1583,96 @@ function calculatePercentage(weights, optIdx) {
   return (weights[optIdx] / total) * 100;
 }
 
+function createGridWeightsConfig(question, cfg, qIdx) {
+  const rows = getGridRowLabels(question);
+  const columns = getQuestionAnswerOptions(question, cfg);
+  ensureGridRowConfig(cfg, question);
+
+  const container = document.createElement('div');
+  container.className = 'spammerz-grid-row-config-list';
+
+  const summary = document.createElement('div');
+  summary.className = 'spammerz-grid-detected-badge';
+  summary.innerHTML = `
+    <div><strong>Grid rows:</strong> ${rows.length}</div>
+    <div><strong>Answer columns:</strong> ${escHtml(columns.join(' | ') || 'None detected')}</div>
+  `;
+  container.appendChild(summary);
+
+  rows.forEach((rowTitle, rowIdx) => {
+    const rowWeights = cfg.gridRowWeights?.[rowIdx]?.weights || cfg.weights || createEqualWeights(columns.length);
+    const rowCard = document.createElement('div');
+    rowCard.className = 'spammerz-grid-row-card';
+
+    rowCard.innerHTML = `
+      <div class="spammerz-grid-row-card-header">
+        <div class="spammerz-grid-row-title">Row ${rowIdx + 1}: ${escHtml(rowTitle)}</div>
+        <button class="spammerz-icon-btn spammerz-random-grid-row-btn" data-qidx="${qIdx}" data-rowidx="${rowIdx}" type="button" title="Randomize this grid row" ${columns.length <= 1 ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 3h5v5"/>
+            <path d="M4 20L21 3"/>
+            <path d="M21 16v5h-5"/>
+            <path d="M15 15l6 6"/>
+            <path d="M4 4l5 5"/>
+          </svg>
+        </button>
+      </div>
+      <div class="spammerz-weights-list spammerz-grid-row-weights" data-qidx="${qIdx}" data-rowidx="${rowIdx}">
+        ${columns.map((column, optIdx) => {
+          const weight = rowWeights[optIdx] || 0;
+          const percentage = calculatePercentage(rowWeights, optIdx);
+          return `
+            <div class="spammerz-weight-row">
+              <div class="spammerz-weight-option">${escHtml(column)}</div>
+              <div class="spammerz-weight-input-group">
+                <input type="range" class="spammerz-grid-weight-slider"
+                       data-qidx="${qIdx}" data-rowidx="${rowIdx}" data-optidx="${optIdx}"
+                       value="${weight}" min="0" max="100" step="1">
+                <span class="spammerz-weight-value">${weight}</span>
+                <span class="spammerz-weight-percent">${percentage.toFixed(0)}%</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+        <div class="spammerz-weights-total">Total weight: ${rowWeights.reduce((a, b) => a + b, 0)}</div>
+      </div>
+    `;
+
+    container.appendChild(rowCard);
+  });
+
+  return container;
+}
+
+function ensureGridRowConfig(cfg, question) {
+  if (!cfg || !question) return cfg;
+  const columns = getQuestionAnswerOptions(question, cfg);
+  const rows = getGridRowLabels(question);
+  syncConfigValuesToOptions(cfg, columns);
+  const fallbackWeights = cfg.weights?.length === columns.length ? cfg.weights : createEqualWeights(columns.length);
+  const current = Array.isArray(cfg.gridRowWeights) ? cfg.gridRowWeights : [];
+  cfg.gridRowWeights = rows.map((rowTitle, rowIdx) => {
+    const existing = current[rowIdx];
+    const weights = Array.isArray(existing?.weights) && existing.weights.length === columns.length
+      ? existing.weights
+      : [...fallbackWeights];
+    return {
+      rowTitle,
+      rowId: question.gridRowIds?.[rowIdx] || '',
+      weights,
+    };
+  });
+  return cfg;
+}
+
+function createEqualWeights(count) {
+  if (!count || count <= 0) return [];
+  const equalWeight = Math.floor(100 / count);
+  return Array.from({ length: count }, (_, i) => (
+    i === count - 1 ? 100 - (equalWeight * (count - 1)) : equalWeight
+  ));
+}
+
 function getNameBindingDisplayLabel(binding, labels) {
   const label = labels[binding.fieldType] || binding.fieldType;
   if (binding.fieldType !== 'pattern') return label;
@@ -1617,13 +1706,32 @@ function isRatingQuestion(question) {
 
 function getConfigurableOptionCount(question, cfg) {
   if (!question) return cfg?.values?.length || 0;
+  const options = getQuestionAnswerOptions(question, cfg);
+  if (options.length) return options.length;
+  return cfg?.values?.length || 0;
+}
+
+function getQuestionAnswerOptions(question, cfg = null) {
+  if (!question) return cfg?.values ? [...cfg.values] : [];
+  if (question.type === 'grid' || question.type === 'checkbox_grid') {
+    const cols = question.gridColumns || question.gridCols || [];
+    if (cols.length) return [...cols];
+    return cfg?.values ? [...cfg.values] : [];
+  }
   if (question.type === 'linear_scale') {
     const scaleMin = Number.isFinite(question.scaleMin) ? question.scaleMin : 1;
     const scaleMax = Number.isFinite(question.scaleMax) ? question.scaleMax : Math.max(scaleMin, 5);
-    return Math.max(0, scaleMax - scaleMin + 1);
+    const options = [];
+    for (let i = scaleMin; i <= scaleMax; i++) options.push(String(i));
+    return options;
   }
-  if (question.options?.length) return question.options.length;
-  return cfg?.values?.length || 0;
+  return question.options?.length ? [...question.options] : (cfg?.values ? [...cfg.values] : []);
+}
+
+function getGridRowLabels(question) {
+  if (!question) return [];
+  const rows = question.gridRows || question.options || [];
+  return Array.isArray(rows) ? rows.filter(Boolean) : [];
 }
 
 function detectAgeQuestion(question, idx = 0) {
@@ -2290,6 +2398,20 @@ function createRandomWeights(count) {
   return weights;
 }
 
+function updateWeightsListUI(weightsList, weights) {
+  if (!weightsList || !Array.isArray(weights)) return;
+  weightsList.querySelectorAll('.spammerz-weight-row').forEach((weightRow, idx) => {
+    const slider = weightRow.querySelector('input[type="range"]');
+    const valueSpan = weightRow.querySelector('.spammerz-weight-value');
+    const percentSpan = weightRow.querySelector('.spammerz-weight-percent');
+    if (slider && idx < weights.length) slider.value = weights[idx];
+    if (valueSpan && idx < weights.length) valueSpan.textContent = String(weights[idx]);
+    if (percentSpan) percentSpan.textContent = calculatePercentage(weights, idx).toFixed(0) + '%';
+  });
+  const totalEl = weightsList.querySelector('.spammerz-weights-total');
+  if (totalEl) totalEl.textContent = `Total weight: ${weights.reduce((a, b) => a + b, 0)}`;
+}
+
 /**
  * Detect name-related questions from form questions
  * More specific patterns checked first to avoid false matches
@@ -2379,6 +2501,8 @@ function detectNamePart(part) {
 
 function detectAddressQuestions(questions) {
   const detected = [];
+  const addressCluster = hasAddressQuestionCluster(questions);
+
   questions.forEach((q, idx) => {
     // Only detect for text-based question types (short answer, paragraph)
     if (!isSmartTextQuestion(q)) return;
@@ -2389,14 +2513,13 @@ function detectAddressQuestions(questions) {
 
     // Country - but NOT nationality/birth questions
     if (/\b(country|nation)\b/.test(title) && !isAddressFieldContext(title, 'country')) {
-      // Only detect if it looks like address context
-      if (/\byour\b|\bwhat\b.*\bcountry\b|\bwhich\s+country\b|\bcurrent\b|\bliving\s+in\b/i.test(title)) {
+      if (addressCluster || /\byour\b|\bwhat\b.*\bcountry\b|\bwhich\s+country\b|\bcurrent\b|\bliving\s+in\b/i.test(title)) {
         detected.push({ ...base, fieldType: 'country' });
       }
     }
     // Postal/ZIP code
     else if (/\b(zip|postal|postcode|post\s*code|pin)\s*(code)?\b|\bpincode\b/.test(title)) {
-      if (/\byour\b|\bwhat\b.*\bzip\b|\bwhich\b.*\bzip\b|\byour\s+location\b/i.test(title)) {
+      if (addressCluster || /\byour\b|\bwhat\b.*\bzip\b|\bwhich\b.*\bzip\b|\byour\s+location\b/i.test(title)) {
         detected.push({ ...base, fieldType: 'postalCode' });
       }
     }
@@ -2422,15 +2545,15 @@ function detectAddressQuestions(questions) {
     }
     // City - but NOT favorite/dream/city of birth
     else if (/\b(city|municipality|town|suburb|locality)\b/.test(title)) {
-      if (!/\b(favorite|favourite|favorite|dream|ideal|best|preferred)\s+(city|town)\b/i.test(titleLower)) {
-        if (/\byour\b|\bwhat\b.*\bcity\b|\bwhich\s+city\b|\bcity\b.*\byour\b/i.test(title)) {
+      if (!isAddressFieldContext(title, 'city')) {
+        if (addressCluster || /\byour\b|\bwhat\b.*\b(city|municipality|town)\b|\bwhich\s+(city|municipality|town)\b|\bcity\b.*\byour\b/i.test(title)) {
           detected.push({ ...base, fieldType: 'city' });
         }
       }
     }
     // Region
     else if (/\bregion\b/.test(title) && !/\b(province|state)\b/.test(title)) {
-      if (/\byour\b|\bwhat\b.*\bregion\b/i.test(title)) {
+      if (addressCluster || /\byour\b|\bwhat\b.*\bregion\b/i.test(title)) {
         detected.push({ ...base, fieldType: 'region' });
       }
     }
@@ -2440,7 +2563,7 @@ function detectAddressQuestions(questions) {
     }
     // Street
     else if (/\b(street|house|lot|block|blk|street\s*number|street\s*name)\b/.test(title)) {
-      if (/\byour\b|\bwhat\b.*\bstreet\b|\bwhich\s+street\b/i.test(title)) {
+      if (addressCluster || /\byour\b|\bwhat\b.*\bstreet\b|\bwhich\s+street\b/i.test(title)) {
         detected.push({ ...base, fieldType: 'addressLine1' });
       }
     }
@@ -2448,8 +2571,35 @@ function detectAddressQuestions(questions) {
     else if (isSmartTextQuestion(q) && isFullAddressTitle(title)) {
       detected.push({ ...base, fieldType: 'fullAddress' });
     }
+    // Generic location labels are only address fields when nearby labels form an address cluster.
+    else if (addressCluster && isGenericAddressLocationTitle(title)) {
+      detected.push({ ...base, fieldType: 'fullAddress' });
+    }
   });
   return detected;
+}
+
+function hasAddressQuestionCluster(questions) {
+  let signals = 0;
+  (questions || []).forEach(q => {
+    if (!isSmartTextQuestion(q)) return;
+    const title = normalizeNameTitle(q.title || '');
+    if (!title) return;
+    if (isAddressFieldContext(title, 'country') || isAddressFieldContext(title, 'city')) return;
+    if (isFullAddressTitle(title) || isGenericAddressLocationTitle(title)) signals += 2;
+    else if (/\b(street|house|lot|block|blk|address\s*line|city|municipality|town|suburb|locality|region|province|state|territory|prefecture|emirate|zip|postal|postcode|post\s*code|pin\s*code|pincode|country)\b/i.test(title)) {
+      signals++;
+    }
+  });
+  return signals >= 2;
+}
+
+function isGenericAddressLocationTitle(title) {
+  const t = title.toLowerCase().trim();
+  if (/\b(business|company|employer|work|office|event|store|branch|school)\s+location\b/i.test(t)) return false;
+  if (/\b(favorite|favourite|dream|ideal|preferred|best)\s+location\b/i.test(t)) return false;
+  if (/^place\s+of\s+(residence|residency|living)$/.test(t)) return true;
+  return /^(home\s+)?location$/.test(t) || /\b(home\s+location|residential\s+location)\b/i.test(t);
 }
 
 /**
@@ -3887,6 +4037,21 @@ function createWeightedSubmissionPlan(formData, state, count) {
 
   formData.allQuestions.forEach((question, qIdx) => {
     const cfg = state.answers[qIdx];
+    if (question?.type === 'grid' || question?.type === 'checkbox_grid') {
+      ensureGridRowConfig(cfg, question);
+      const rows = getGridRowLabels(question);
+      const rowPlan = {};
+      rows.forEach((_, rowIdx) => {
+        const columns = getQuestionAnswerOptions(question, cfg);
+        const rowCfg = cfg.gridRowWeights?.[rowIdx];
+        if (!columns.length || !rowCfg?.weights?.length) return;
+        if ((state.weightMode || 'plan') === 'plan') {
+          rowPlan[rowIdx] = createWeightedValueQueue(columns, rowCfg.weights, count);
+        }
+      });
+      if (Object.keys(rowPlan).length) plan.set(qIdx, rowPlan);
+      return;
+    }
     if (!cfg?.values?.length || !cfg.weights || cfg.weights.length !== cfg.values.length) return;
     if (!cfg.randomize || cfg.values.length <= 1) return;
 
@@ -4011,6 +4176,7 @@ function applyPreviewValue(wrapper, question, value) {
   if (type === 'grid' || type === 'checkbox_grid') {
     const groupMap = new Map();
     inputs.forEach(input => {
+      if (input.type !== 'radio' && input.type !== 'checkbox') return;
       if (!input.name) return;
       if (!groupMap.has(input.name)) groupMap.set(input.name, []);
       groupMap.get(input.name).push(input);
@@ -4018,7 +4184,8 @@ function applyPreviewValue(wrapper, question, value) {
 
     groupMap.forEach(group => {
       group.forEach(input => { input.checked = false; });
-      const target = group[Math.floor(Math.random() * group.length)];
+      const target = Array.from(group).find(input => input.value === value)
+        || group[Math.floor(Math.random() * group.length)];
       if (target) target.checked = true;
       if (target) target.dispatchEvent(new Event('change', { bubbles: true }));
     });
@@ -4494,6 +4661,18 @@ function attachAllListeners(formData, s, updateState) {
         const question = formData.allQuestions[qIdx];
         const optionCount = getConfigurableOptionCount(question, cfg);
         if (optionCount <= 1) return cfg;
+        if (question?.type === 'grid' || question?.type === 'checkbox_grid') {
+          ensureGridRowConfig(cfg, question);
+          return {
+            ...cfg,
+            mode: 'weighted',
+            randomize: true,
+            gridRowWeights: cfg.gridRowWeights.map(row => ({
+              ...row,
+              weights: createRandomWeights(optionCount),
+            })),
+          };
+        }
 
         return {
           ...cfg,
@@ -4519,6 +4698,18 @@ function attachAllListeners(formData, s, updateState) {
 
         const optionCount = getConfigurableOptionCount(question, cfg);
         if (optionCount <= 1) return cfg;
+        if (question?.type === 'grid' || question?.type === 'checkbox_grid') {
+          ensureGridRowConfig(cfg, question);
+          return {
+            ...cfg,
+            mode: 'weighted',
+            randomize: true,
+            gridRowWeights: cfg.gridRowWeights.map(row => ({
+              ...row,
+              weights: createRandomWeights(optionCount),
+            })),
+          };
+        }
 
         return {
           ...cfg,
@@ -4573,6 +4764,29 @@ function attachAllListeners(formData, s, updateState) {
     };
   });
 
+  document.querySelectorAll('.spammerz-random-grid-row-btn').forEach(btn => {
+    btn.onclick = () => {
+      const qIdx = parseInt(btn.dataset.qidx, 10);
+      const rowIdx = parseInt(btn.dataset.rowidx, 10);
+      const cfg = window.spammerzState.answers[qIdx];
+      const question = formData.allQuestions[qIdx];
+      if (!cfg || !question) return;
+
+      ensureGridRowConfig(cfg, question);
+      const optionCount = getConfigurableOptionCount(question, cfg);
+      if (optionCount <= 1 || !cfg.gridRowWeights?.[rowIdx]) return;
+
+      const newWeights = createRandomWeights(optionCount);
+      cfg.mode = 'weighted';
+      cfg.randomize = true;
+      cfg.gridRowWeights[rowIdx].weights = newWeights;
+
+      const weightsList = btn.closest('.spammerz-grid-row-card')?.querySelector('.spammerz-grid-row-weights');
+      updateWeightsListUI(weightsList, newWeights);
+      updateState({ answers: window.spammerzState.answers });
+    };
+  });
+
   // Weight sliders
   document.querySelectorAll('.spammerz-weight-slider').forEach(input => {
     input.oninput = (e) => {
@@ -4603,6 +4817,30 @@ function attachAllListeners(formData, s, updateState) {
         const totalEl = row.closest('.spammerz-weights-list').querySelector('.spammerz-weights-total');
         if (totalEl) totalEl.textContent = `Total weight: ${total}`;
       }
+    };
+  });
+
+  document.querySelectorAll('.spammerz-grid-weight-slider').forEach(input => {
+    input.oninput = (e) => {
+      const qIdx = parseInt(e.target.dataset.qidx, 10);
+      const rowIdx = parseInt(e.target.dataset.rowidx, 10);
+      const optIdx = parseInt(e.target.dataset.optidx, 10);
+      const newWeight = parseInt(e.target.value, 10) || 0;
+      const cfg = window.spammerzState.answers[qIdx];
+      const question = formData.allQuestions[qIdx];
+      if (!cfg || !question) return;
+
+      ensureGridRowConfig(cfg, question);
+      if (!cfg.gridRowWeights?.[rowIdx]?.weights) return;
+
+      cfg.gridRowWeights[rowIdx].weights[optIdx] = newWeight;
+      cfg.mode = 'weighted';
+      cfg.randomize = true;
+
+      const row = e.target.closest('.spammerz-weight-row');
+      const valueSpan = row?.querySelector('.spammerz-weight-value');
+      if (valueSpan) valueSpan.textContent = String(newWeight);
+      updateWeightsListUI(row?.closest('.spammerz-grid-row-weights'), cfg.gridRowWeights[rowIdx].weights);
     };
   });
 
@@ -4890,6 +5128,88 @@ function attachAllListeners(formData, s, updateState) {
  * Start the actual submission loop
  */
 async function startSubmissionLoop(formData, state, updateState) {
+  console.log('[SpammerZ] ===== SUBMISSION DEBUG START =====');
+  console.log('[SpammerZ] Form action URL:', formData?.actionUrl);
+
+  let emailCheck = {
+    enabled: false,
+    reason: 'Email collection check did not run yet',
+    debug: {},
+  };
+
+  // Pre-flight: Check for form issues that cause 400 errors
+  console.log('[SpammerZ] Checking for 400-error causes:');
+
+  // Check for reCAPTCHA
+  const recaptchaElements = document.querySelectorAll('.grecaptcha-badge, [id*="recaptcha"], iframe[src*="recaptcha"]');
+  console.log('[SpammerZ]   reCAPTCHA elements:', recaptchaElements.length);
+
+  // Check form settings for quiz mode (can cause issues)
+  const raw = getFbPublicLoadData();
+  if (raw && raw[1] && raw[1][0]) {
+    const settings = raw[1][0];
+    // Look for quiz-related settings
+    for (let j = 0; j < Math.min(settings.length, 30); j++) {
+      const s = settings[j];
+      if (s && typeof s === 'object') {
+        const sStr = JSON.stringify(s).toLowerCase();
+        if (sStr.includes('quiz') || sStr.includes('scores')) {
+          console.log('[SpammerZ]   Potential quiz settings at index', j, ':', JSON.stringify(s).substring(0, 100));
+        }
+      }
+    }
+  }
+
+  // Count actual form fields vs required
+  const allQuestions = formData?.allQuestions || [];
+  const requiredQuestions = allQuestions.filter(q => q.required);
+  console.log('[SpammerZ]   Total questions:', allQuestions.length);
+  console.log('[SpammerZ]   Required questions:', requiredQuestions.length);
+
+  // Check email collection status
+  try {
+    emailCheck = detectEmailCollectionEnabledV2();
+  } catch (err) {
+    emailCheck = {
+      enabled: false,
+      reason: 'Email collection detector crashed; continuing with other diagnostics',
+      debug: {
+        error: err?.message || String(err),
+        stack: err?.stack || null,
+      },
+    };
+    console.error('[SpammerZ] Email collection detector crashed:', err);
+  }
+
+  console.log('[SpammerZ] Pre-flight email collection check:', emailCheck);
+  logSubmissionPreflightDiagnostics(formData, {
+    emailCheck,
+    recaptchaElements,
+    allQuestions,
+    requiredQuestions,
+  });
+
+  if (emailCheck.enabled) {
+    console.error('[SpammerZ] ERROR: Email collection is ENABLED - stopping!');
+    window.spammerzState.running = false;
+    showEmailCollectionModal();
+    return;
+  }
+
+  // Pre-flight: Log all submission-relevant form data
+  console.log('[SpammerZ] Pre-flight form check complete.');
+
+  // Log all hidden inputs in the form
+  const liveForm = findLiveFormRoot();
+  if (liveForm) {
+    const hiddenInputs = liveForm.querySelectorAll('input[type="hidden"]');
+    console.log('[SpammerZ] Hidden inputs in form:', Array.from(hiddenInputs).map(el => ({
+      name: el.name,
+      id: el.id,
+      value: el.value ? el.value.substring(0, 30) + '...' : '[empty]'
+    })));
+  }
+
   const getState = () => window.spammerzState;
   const startIndex = getState().submitted;
   const remainingCount = Math.max(0, getState().count - startIndex);
@@ -4897,15 +5217,19 @@ async function startSubmissionLoop(formData, state, updateState) {
     ? createWeightedSubmissionPlan(formData, getState(), remainingCount)
     : new Map();
 
+  let submissionCount = 0;
+
   for (let i = startIndex; i < getState().count; i++) {
     if (!getState().running) break;
 
     window.spammerzState.submitted = i + 1;
     const planIndex = i - startIndex;
+    submissionCount++;
 
     // Build payload
     const payload = buildLiveFormPayload(formData, getState(), submissionPlan, planIndex);
     if (!payload) {
+      console.error('[SpammerZ] Payload was null, stopping submission');
       break;
     }
 
@@ -4914,6 +5238,17 @@ async function startSubmissionLoop(formData, state, updateState) {
       const liveForm = findLiveFormRoot();
       const actionUrl = liveForm?.getAttribute('action') || formData.actionUrl;
       ensureGoogleFormFields(payload, liveForm);
+
+      // Debug: Log payload entries
+      console.log(`[SpammerZ] Submission #${submissionCount} (loop ${i + 1}):`);
+      const payloadEntries = payload.entries ? Array.from(payload.entries()) : [];
+      console.log('[SpammerZ] Payload entries count:', payloadEntries.length);
+      payloadEntries.forEach(([key, value]) => {
+        if (key.includes('email') || key.includes('Email')) {
+          console.log(`[SpammerZ]   EMAIL FIELD DETECTED: ${key} = ${value}`);
+        }
+      });
+
       logFormData(payload, { maxEntries: 40 });
       logMissingQuestionEntries(payload, formData);
       logMissingEntryDetails(payload, formData);
@@ -4926,19 +5261,63 @@ async function startSubmissionLoop(formData, state, updateState) {
       logEmptyEntryFill(payload);
       logEmptyEntryDetails(payload, formData);
       logEntryMapOptionMismatches(payload, formData);
+      logUnansweredSentinelRows(payload);
 
-      await fetch(actionUrl, {
+      console.log('[SpammerZ] Sending POST to:', actionUrl);
+
+      // Debug: Log ALL payload entries for 400 diagnosis
+      console.log('[SpammerZ] FULL PAYLOAD:');
+      if (payloadEntries.length > 0) {
+        payloadEntries.forEach(([key, value]) => {
+          const printableValue = value == null || value === ''
+            ? '[empty]'
+            : String(value).substring(0, 50);
+          console.log(`[SpammerZ]   ${key} = ${printableValue}`);
+        });
+      }
+
+      const response = await fetch(actionUrl, {
         method: 'POST',
         body: payload,
         mode: 'no-cors',
       });
+
+      console.log('[SpammerZ] Submission #', submissionCount, 'request sent (no-cors mode; status unreadable)');
       window.spammerzState.succeeded++;
     } catch (err) {
+      console.error('[SpammerZ] Submission #', submissionCount, 'ERROR:', err);
+      console.error('[SpammerZ] Possible causes of 400:');
+      console.error('[SpammerZ]   1. reCAPTCHA triggered (Google detected bot behavior)');
+      console.error('[SpammerZ]   2. Rate limiting (try increasing delay)');
+      console.error('[SpammerZ]   3. Form requires login/authentication');
+      console.error('[SpammerZ]   4. Missing required field values');
+      console.error('[SpammerZ]   5. Form settings changed after parsing');
+
       logSubmitDebug('submit-error', payload, formData, { error: err?.message || String(err) });
       window.spammerzState.failed++;
-      // Show email collection warning on failures
-      if (window.spammerzState.failed === 1) {
+    }
+
+    // Show warning on first failure (but email collection is NOT the issue)
+    if (window.spammerzState.failed === 1) {
+      console.warn('[SpammerZ] First submission failed. Running diagnostics...');
+      let failCheck;
+      try {
+        failCheck = detectEmailCollectionEnabledV2();
+      } catch (err) {
+        failCheck = {
+          enabled: false,
+          reason: 'Email collection detector crashed during failure diagnostics',
+          debug: { error: err?.message || String(err), stack: err?.stack || null },
+        };
+        console.error('[SpammerZ] Email collection detector crashed during failure diagnostics:', err);
+      }
+      if (failCheck.enabled) {
+        console.warn('[SpammerZ] Email collection IS enabled - showing warning');
         showEmailCollectionWarning();
+      } else {
+        console.warn('[SpammerZ] Email collection is NOT enabled.');
+        console.warn('[SpammerZ] 400 error is from another cause (see above).');
+        showGenericSubmissionWarning();
       }
     }
 
@@ -4952,6 +5331,13 @@ async function startSubmissionLoop(formData, state, updateState) {
     }
   }
 
+  console.log('[SpammerZ] ===== SUBMISSION DEBUG END =====');
+  console.log('[SpammerZ] Results:', {
+    total: submissionCount,
+    succeeded: window.spammerzState.succeeded,
+    failed: window.spammerzState.failed
+  });
+
   window.spammerzState.running = false;
   updateState({
     running: false,
@@ -4962,6 +5348,106 @@ async function startSubmissionLoop(formData, state, updateState) {
 
   function render() { if (window.renderSpammerZUI) window.renderSpammerZUI(formData, window.spammerzState, updateState); }
   render();
+}
+
+function logSubmissionPreflightDiagnostics(formData, context = {}) {
+  const formEl = findLiveFormRoot();
+  const actionUrl = formEl?.getAttribute('action') || formData?.actionUrl || '';
+  const pageText = (document.body?.innerText || '').toLowerCase();
+  const raw = getFbPublicLoadData();
+  const hiddenInputs = formEl ? Array.from(formEl.querySelectorAll('input[type="hidden"]')) : [];
+  const fileInputs = formEl ? Array.from(formEl.querySelectorAll('input[type="file"]')) : [];
+  const requiredDomFields = formEl ? Array.from(formEl.querySelectorAll('[aria-required="true"], [required]')) : [];
+  const disabledRequiredDomFields = requiredDomFields.filter(el => el.disabled || el.getAttribute('aria-disabled') === 'true');
+  const suspiciousTextMatches = [
+    'sign in',
+    'signed in',
+    'limit to 1 response',
+    'not accepting responses',
+    'requires sign in',
+    'upload files',
+    'captcha',
+  ].filter(text => pageText.includes(text));
+
+  const diagnostics = {
+    actionUrl,
+    actionLooksLikeFormResponse: actionUrl.includes('/formResponse'),
+    liveFormFound: !!formEl,
+    liveFormMethod: formEl?.getAttribute('method') || null,
+    currentUrl: window.location.href,
+    urlParams: Object.fromEntries(new URLSearchParams(window.location.search)),
+    emailCollection: {
+      enabled: !!context.emailCheck?.enabled,
+      reason: context.emailCheck?.reason || null,
+      detectorError: context.emailCheck?.debug?.error || null,
+    },
+    recaptchaCount: context.recaptchaElements?.length ?? document.querySelectorAll('.grecaptcha-badge, [id*="recaptcha"], iframe[src*="recaptcha"]').length,
+    suspiciousPageText: suspiciousTextMatches,
+    totalQuestions: context.allQuestions?.length ?? formData?.allQuestions?.length ?? 0,
+    requiredQuestions: context.requiredQuestions?.length ?? (formData?.allQuestions || []).filter(q => q.required).length,
+    missingRequiredQuestionIds: (context.requiredQuestions || (formData?.allQuestions || []).filter(q => q.required))
+      .filter(q => !q.id)
+      .map(q => ({ title: q.title || q.text || '[untitled]', type: q.type || null })),
+    hiddenInputCount: hiddenInputs.length,
+    hiddenInputNames: hiddenInputs.map(el => el.name || el.id || '[unnamed]').slice(0, 60),
+    fileInputCount: fileInputs.length,
+    requiredDomFieldCount: requiredDomFields.length,
+    disabledRequiredDomFieldCount: disabledRequiredDomFields.length,
+    fbPublicLoadData: {
+      found: Array.isArray(raw),
+      topLevelLength: Array.isArray(raw) ? raw.length : 0,
+      settingsLength: Array.isArray(raw?.[1]?.[0]) ? raw[1][0].length : 0,
+    },
+  };
+
+  console.log('[SpammerZ] Pre-flight diagnostics:', diagnostics);
+
+  if (!diagnostics.liveFormFound) {
+    console.warn('[SpammerZ] Possible 400 cause: no live Google Form element was found.');
+  }
+  if (!diagnostics.actionLooksLikeFormResponse) {
+    console.warn('[SpammerZ] Possible 400 cause: form action is missing or does not point to /formResponse:', actionUrl);
+  }
+  if (diagnostics.recaptchaCount > 0) {
+    console.warn('[SpammerZ] Possible 400 cause: reCAPTCHA detected on the page.');
+  }
+  if (diagnostics.fileInputCount > 0) {
+    console.warn('[SpammerZ] Possible 400 cause: file upload questions require browser/authenticated handling.');
+  }
+  if (diagnostics.suspiciousPageText.length > 0) {
+    console.warn('[SpammerZ] Possible 400 cause: page contains restriction text:', diagnostics.suspiciousPageText);
+  }
+  if (diagnostics.missingRequiredQuestionIds.length > 0) {
+    console.warn('[SpammerZ] Possible 400 cause: required questions missing parsed question IDs:', diagnostics.missingRequiredQuestionIds);
+  }
+}
+
+function logUnansweredSentinelRows(payload) {
+  if (!payload?.entries) return;
+
+  const answered = new Set();
+  const sentinelRows = [];
+
+  for (const [key, value] of payload.entries()) {
+    if (!key.startsWith('entry.')) continue;
+    if (key.endsWith('_sentinel')) {
+      sentinelRows.push(key.replace(/_sentinel$/, ''));
+      continue;
+    }
+    if (value !== '' && value != null) {
+      answered.add(key);
+    }
+  }
+
+  const missingRows = sentinelRows.filter(entryKey => !answered.has(entryKey));
+  if (!missingRows.length) return;
+
+  const details = {
+    count: missingRows.length,
+    rows: missingRows.slice(0, 80),
+    note: 'Google Forms uses entry.*_sentinel for grid/required row validation. If these rows are required, each matching entry.* key also needs a non-empty answer.',
+  };
+  console.warn('[SpammerZ] Possible 400 cause: sentinel rows without answers:', JSON.stringify(details));
 }
 
 /**
@@ -4993,6 +5479,12 @@ function buildLiveFormPayload(formData, state, submissionPlan = new Map(), planI
     if (!cfg) return;
 
     const plannedValue = submissionPlan.get(idx)?.[planIndex];
+    if (q.type === 'grid' || q.type === 'checkbox_grid') {
+      const rowValues = resolveGridRowValues(q, cfg, plannedValue, planIndex);
+      applyGridPreviewValues(formEl, q, rowValues);
+      return;
+    }
+
     let value = plannedValue !== undefined ? plannedValue : resolvePreviewValueForQuestion(cfg, q);
     if (detectAgeQuestion(q, idx)) {
       value = generateAgeValue(cfg.ageConfig);
@@ -5042,6 +5534,38 @@ function applyResolvedEntriesToPayload(payload, entries) {
   entries.forEach(({ id, value }) => {
     payload.delete(id);
     payload.append(id, value);
+  });
+}
+
+function resolveGridRowValues(question, cfg, plannedRows = null, planIndex = 0) {
+  ensureGridRowConfig(cfg, question);
+  const columns = getQuestionAnswerOptions(question, cfg);
+  const rowValues = new Map();
+  getGridRowLabels(question).forEach((_, rowIdx) => {
+    const rowId = question.gridRowIds?.[rowIdx];
+    if (!rowId) return;
+    let value = plannedRows?.[rowIdx]?.[planIndex];
+    if (value === undefined) {
+      const weights = cfg.gridRowWeights?.[rowIdx]?.weights || cfg.weights || createEqualWeights(columns.length);
+      value = weightedPreviewPick(columns, weights);
+    }
+    rowValues.set(rowId, value);
+  });
+  return rowValues;
+}
+
+function applyGridPreviewValues(formEl, question, rowValues) {
+  if (!formEl || !rowValues?.size) return;
+  rowValues.forEach((value, rowId) => {
+    const inputs = Array.from(formEl.querySelectorAll(`[name="${rowId}"]`))
+      .filter(input => input.type === 'radio' || input.type === 'checkbox');
+    if (!inputs.length) return;
+    inputs.forEach(input => { input.checked = false; });
+    const target = inputs.find(input => input.value === value) || inputs[0];
+    if (target) {
+      target.checked = true;
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   });
 }
 
@@ -5501,76 +6025,283 @@ function ensureGoogleFormFields(formData, formEl) {
 /**
  * Detects if the Google Form has "Collect email addresses" enabled.
  * This feature requires Google authentication and causes 400 errors when submissions bypass it.
+ * Returns object with { enabled, reason, debug } for debugging.
  */
-function detectEmailCollectionEnabled() {
+function detectEmailCollectionEnabledV2() {
+  const debug = {
+    fbDataFound: false,
+    fbSettings: null,
+    fbEmailFlags: [],
+    hiddenEmailFields: [],
+    urlParams: null,
+    domEmailInputs: [],
+    domEmailLabels: [],
+    entryFields: [],
+    entryContainsEmail: [],
+  };
+
   // Method 1: Check FB_PUBLIC_LOAD_DATA_ for email collection setting
   const raw = getFbPublicLoadData();
   if (raw && Array.isArray(raw) && raw.length > 1) {
+    debug.fbDataFound = true;
     try {
-      // raw[1] contains form metadata, raw[1][0] contains form settings
       const formSettings = raw[1]?.[0];
       if (Array.isArray(formSettings)) {
-        // Settings array structure: check common boolean positions
-        // Index 2-4 often contains quiz/email flags
-        for (let i = 2; i < Math.min(formSettings.length, 10); i++) {
+        debug.fbSettings = formSettings.slice(0, 15);
+
+        // More careful checking - look for actual email collection flags
+        for (let i = 0; i < Math.min(formSettings.length, 20); i++) {
           const setting = formSettings[i];
-          // Check for email collection at specific indices
-          if (setting === true && (i === 5 || i === 7)) {
-            return true;
-          }
-          // Check if it's an object with email-related flags
+
           if (setting && typeof setting === 'object') {
-            if (setting.emailCollection || setting.collectEmail) {
-              return true;
+            // Check for explicit email collection flags (most reliable)
+            if (setting.emailCollection === true || setting.collectEmail === true) {
+              debug.fbEmailFlags.push({ index: i, type: 'explicitFlag', value: true });
+              console.log('[SpammerZ] Email debug: Found emailCollection=true at index', i);
             }
-            // Check nested boolean at positions 5 or 7
-            if (setting[5] === true || setting[7] === true) {
-              return true;
+            // Only check nested flags in the right context
+            if (i >= 4 && (setting[5] === true || setting[7] === true)) {
+              debug.fbEmailFlags.push({ index: i, type: 'nestedFlag', hasEmailFlag: true });
+              console.log('[SpammerZ] Email debug: Found nested flag at index', i, setting);
             }
           }
         }
+
+        // If we found email collection flags, return true
+        if (debug.fbEmailFlags.some(f => f.type === 'explicitFlag')) {
+          console.log('[SpammerZ] Email Collection detected via FB data:', debug.fbEmailFlags);
+          return { enabled: true, reason: 'FB_PUBLIC_LOAD_DATA_ explicit flag found', debug };
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[SpammerZ] Email debug: Error parsing FB data', e);
+    }
   }
 
-  // Method 2: Check for email input field in the form DOM
+  // Method 2: Check DOM for email collection indicators
   const formEl = findLiveFormRoot();
   if (formEl) {
-    // Look for email-related inputs or labels
-    const emailInputs = formEl.querySelectorAll(
-      'input[name*="email" i], input[placeholder*="email" i], input[aria-label*="email" i]'
-    );
-    if (emailInputs.length > 0) return true;
+    // Check URL parameters first - this is a strong indicator
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      debug.urlParams = Object.fromEntries(urlParams.entries());
+      console.log('[SpammerZ] Email debug: URL params:', debug.urlParams);
 
-    // Check for entry fields associated with email
+      if (urlParams.get('usp') === 'sf') {
+        console.log('[SpammerZ] Email debug: usp=sf (email collection active)');
+        return { enabled: true, reason: 'URL: usp=sf email collection flow', debug };
+      }
+    } catch (e) {}
+
+    // Look for hidden email collection fields (NOT entry fields - those are survey questions)
+    const hiddenInputs = formEl.querySelectorAll('input[type="hidden"]');
+    for (const input of hiddenInputs) {
+      const name = (input.name || '').toLowerCase();
+      const id = (input.id || '').toLowerCase();
+      // Only report if it's NOT an entry field (those are legitimate survey fields)
+      if ((name.includes('email') || id.includes('email')) && !name.includes('entry.')) {
+        debug.hiddenEmailFields.push({ name: input.name, id: input.id });
+        console.log('[SpammerZ] Email debug: Found hidden email field:', input.name, 'id:', input.id);
+      }
+    }
+
+    // Check for email inputs - but differentiate between collection vs survey question
+    const emailInputs = formEl.querySelectorAll('input[name*="email" i]');
+    debug.domEmailInputs = Array.from(emailInputs).map(el => ({
+      name: el.name,
+      type: el.type,
+      placeholder: el.placeholder,
+      ariaLabel: el.getAttribute('aria-label')
+    }));
+
+    for (const input of emailInputs) {
+      const name = input.name.toLowerCase();
+      // This is likely email collection if:
+      // - Not an entry field (Google's internal field for form itself)
+      // - Or has specific patterns
+      if (!name.includes('entry.') || name.includes('emailaddress')) {
+        console.log('[SpammerZ] Email debug: Suspicious email input (collection?):', input.name);
+      }
+      // This is likely a survey question
+      else if (name.includes('entry.')) {
+        console.log('[SpammerZ] Email debug: Email field is entry (survey question):', input.name);
+      }
+    }
+
+    // Check entry fields for email (these are usually survey questions)
     const entryFields = formEl.querySelectorAll('input[name^="entry."]');
+    debug.entryFields = Array.from(entryFields).map(el => el.name);
+
     for (const field of entryFields) {
       const name = (field.name || '').toLowerCase();
-      const id = (field.id || '').toLowerCase();
-      if (name.includes('email') || id.includes('email')) {
-        return true;
+      if (name.includes('email')) {
+        debug.entryContainsEmail.push(field.name);
+        console.log('[SpammerZ] Email debug: Entry field with email (survey question, not collection):', field.name);
       }
     }
 
-    // Check for email-related labels/text
-    const emailLabels = formEl.querySelectorAll('.docssharedWizSelectSearchOptionLabel, span, label, div[data-value]');
+    // Check for email-related labels
+    const emailLabels = formEl.querySelectorAll('label, .docssharedWizSelectSearchOptionLabel, div[data-value]');
     for (const label of emailLabels) {
       const text = (label.textContent || '').toLowerCase().trim();
-      // Look for "Email Address" or similar email field labels
-      if (text === 'email address' || text.includes('email address')) {
-        return true;
+      if (text.includes('email') && !debug.domEmailLabels.includes(text)) {
+        debug.domEmailLabels.push(text);
+        console.log('[SpammerZ] Email debug: Email label found:', text);
       }
     }
 
-    // Check URL for email collection parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('usp') === 'sf' || urlParams.get('usp')?.startsWith('email')) {
-      return true;
+    // Hidden email fields (non-entry) = email collection is active
+    if (debug.hiddenEmailFields.length > 0) {
+      console.log('[SpammerZ] Email Collection detected via hidden fields:', debug.hiddenEmailFields);
+      return { enabled: true, reason: 'Hidden email collection field found', debug };
     }
   }
 
-  return false;
+  console.log('[SpammerZ] Email Collection NOT enabled. Debug:', debug);
+  return { enabled: false, reason: 'No email collection indicators found', debug };
 }
+
+/**
+ * Backwards compatibility - returns boolean
+ */
+function detectEmailCollectionEnabled() {
+  return detectEmailCollectionEnabledV2().enabled;
+}
+
+// Global debug functions for console
+window.spammerzCheckEmailCollection = function() {
+  const result = detectEmailCollectionEnabledV2();
+  console.log('=== SpammerZ Email Collection Status ===');
+  console.log('Enabled:', result.enabled);
+  console.log('Reason:', result.reason);
+  console.log('Debug:', result.debug);
+  console.log('Run debugEmailCollection() to see full form data');
+  return result;
+};
+
+window.debugEmailCollection = function() {
+  console.log('=== Full Email Collection Debug ===');
+  const result = detectEmailCollectionEnabledV2();
+  console.log('Result:', result);
+
+  // Show FB data structure
+  const raw = getFbPublicLoadData();
+  console.log('FB Data available:', !!raw);
+  if (raw && raw[1] && raw[1][0]) {
+    console.log('Form settings array (first 20):');
+    const settings = raw[1][0];
+    for (let i = 0; i < Math.min(settings.length, 20); i++) {
+      const item = settings[i];
+      console.log(`  [${i}]:`, typeof item === 'object' ? JSON.stringify(item).substring(0, 100) : item);
+    }
+  }
+
+  // Show all hidden inputs
+  const formEl = findLiveFormRoot();
+  if (formEl) {
+    const hidden = formEl.querySelectorAll('input[type="hidden"]');
+    console.log('Hidden inputs:', Array.from(hidden).map(el => ({ name: el.name, id: el.id })));
+  }
+
+  return result;
+};
+
+// Full submission debug - call this to diagnose why submissions might be failing
+window.debugSubmission = function() {
+  console.log('═══════════════════════════════════════════════');
+  console.log('          SpammerZ SUBMISSION DEBUG');
+  console.log('═══════════════════════════════════════════════');
+
+  // 1. Email Collection Status
+  console.log('\n📧 EMAIL COLLECTION STATUS:');
+  const emailResult = detectEmailCollectionEnabledV2();
+  console.log('   Enabled:', emailResult.enabled ? 'YES ⚠️' : 'NO ✅');
+  console.log('   Reason:', emailResult.reason);
+  console.log('   Details:', {
+    fbData: emailResult.debug.fbDataFound ? 'Found' : 'Not Found',
+    hiddenFields: emailResult.debug.hiddenEmailFields,
+    urlParams: emailResult.debug.urlParams,
+    domInputs: emailResult.debug.domEmailInputs,
+    entryEmailFields: emailResult.debug.entryContainsEmail
+  });
+
+  // 2. Form URL
+  console.log('\n🔗 FORM URL:');
+  console.log('   Current URL:', window.location.href);
+  console.log('   URL params:', Object.fromEntries(new URLSearchParams(window.location.search)));
+
+  // 3. Hidden inputs
+  console.log('\n📦 HIDDEN INPUTS:');
+  const formEl = findLiveFormRoot();
+  if (formEl) {
+    const hidden = formEl.querySelectorAll('input[type="hidden"]');
+    console.log('   Count:', hidden.length);
+    hidden.forEach(el => {
+      const isEmail = (el.name || '').toLowerCase().includes('email');
+      console.log(`   ${isEmail ? '⚠️ ' : '  '}${el.name || el.id || '[unnamed]'} = ${el.value ? el.value.substring(0, 20) + '...' : '[empty]'}`);
+    });
+  } else {
+    console.log('   No form found!');
+  }
+
+  // 4. FB_PUBLIC_LOAD_DATA_
+  console.log('\n📋 FORM DATA (FB_PUBLIC_LOAD_DATA_):');
+  const raw = getFbPublicLoadData();
+  console.log('   Available:', !!raw);
+  if (raw) {
+    console.log('   Raw array length:', raw.length);
+    if (raw[1] && raw[1][0]) {
+      const settings = raw[1][0];
+      console.log('   Settings array length:', settings.length);
+      for (let i = 0; i < Math.min(settings.length, 30); i++) {
+        const item = settings[i];
+        if (item && typeof item === 'object') {
+          const str = JSON.stringify(item).toLowerCase();
+          if (str.includes('email') || str.includes('collect')) {
+            console.log(`   [${i}] EMAIL/COLLECT related:`, JSON.stringify(item).substring(0, 150));
+          }
+          if (str.includes('quiz') || str.includes('scores')) {
+            console.log(`   [${i}] QUIZ related:`, JSON.stringify(item).substring(0, 150));
+          }
+        }
+      }
+    }
+  }
+
+  // 5. reCAPTCHA check
+  console.log('\n🤖 reCAPTCHA CHECK:');
+  const recaptchaBadge = document.querySelector('.grecaptcha-badge');
+  const recaptchaIframes = document.querySelectorAll('iframe[src*="recaptcha"]');
+  console.log('   grecaptcha-badge:', !!recaptchaBadge);
+  console.log('   recaptcha iframes:', recaptchaIframes.length);
+  if (recaptchaBadge || recaptchaIframes.length > 0) {
+    console.log('   ⚠️  reCAPTCHA DETECTED - This likely causes 400 errors!');
+  }
+
+  // 6. Summary
+  console.log('\n═══════════════════════════════════════════════');
+  if (emailResult.enabled) {
+    console.log('❌ EMAIL COLLECTION IS ENABLED');
+  } else if (recaptchaBadge || recaptchaIframes.length > 0) {
+    console.log('⚠️  reCAPTCHA DETECTED');
+    console.log('   Google detected bot activity.');
+    console.log('   Try: 1) Wait 15-30 min, 2) Increase delay, 3) Lower count');
+  } else {
+    console.log('✅ No email collection or reCAPTCHA');
+    console.log('   400 causes: Rate limiting, form modified, auth required');
+  }
+  console.log('═══════════════════════════════════════════════');
+
+  return { emailCollection: emailResult, formFound: !!formEl, hasRecaptcha: !!(recaptchaBadge || recaptchaIframes.length > 0) };
+};
+
+window.checkEmailCollection = window.spammerzCheckEmailCollection || detectEmailCollectionEnabledV2;
+window.debugEmailCollection = debugEmailCollection;
+window.debugSubmissionStatus = function() {
+  const result = detectEmailCollectionEnabledV2();
+  console.log('Email Collection:', result.enabled ? 'ENABLED ❌' : 'DISABLED ✅', '|', result.reason);
+  return result;
+};
 
 /**
  * Displays a warning message about email collection requirements.
@@ -5674,6 +6405,22 @@ function showEmailCollectionWarning(permanent = true) {
         max-width: 380px;
         z-index: 999999;
       }
+      .spz-warning-generic {
+        background: var(--spammerz-card);
+        border: 1px solid rgba(255, 170, 0, 0.3);
+      }
+      .spz-warning-config {
+        color: var(--spammerz-warning);
+        background: rgba(255, 170, 0, 0.1);
+        border-radius: 6px;
+        padding: 6px;
+      }
+      .spz-warning-generic strong {
+        color: var(--spammerz-warning);
+      }
+      summary {
+        cursor: pointer;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -5684,6 +6431,44 @@ function showEmailCollectionWarning(permanent = true) {
   } else {
     container.appendChild(warning);
   }
+}
+
+/**
+ * Shows a generic warning when submissions fail but email collection is NOT the cause.
+ */
+function showGenericSubmissionWarning() {
+  const existing = document.getElementById('spz-generic-warning');
+  if (existing) return;
+
+  const container = document.getElementById('spammerz-container') || document.body;
+  const warning = document.createElement('div');
+  warning.id = 'spz-generic-warning';
+  warning.innerHTML = `
+    <div class="spz-warning-banner spz-warning-generic">
+      <div class="spz-warning-icon spz-warning-config">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="spz-warning-content">
+        <strong>Submission Failed (Not Email Collection)</strong>
+        <p>400 errors are occurring for another reason. Check the console for details, or run <code>debugSubmission()</code> to diagnose. Possible causes: reCAPTCHA, rate limiting, or form authentication.</p>
+        <details style="margin-top: 8px;">
+          <summary style="cursor: pointer; color: var(--spammerz-text-secondary); font-size: 11px;">Click to expand troubleshooting</summary>
+          <ul style="margin: 8px 0 0 16px; font-size: 11px; color: var(--spammerz-text-muted);">
+            <li>Try increasing delay to 2000-3000ms</li>
+            <li>Wait 15-30 minutes (rate limited)</li>
+            <li>Lower submission count per batch</li>
+            <li>Form owner may have added restrictions</li>
+          </ul>
+        </details>
+      </div>
+      <button class="spz-warning-close" onclick="this.parentElement.remove()">&#10005;</button>
+    </div>
+  `;
+  document.body.appendChild(warning);
 }
 
 /**
@@ -5729,10 +6514,12 @@ function showEmailCollectionModal() {
                 <polyline points="15 3 21 3 21 9"/>
                 <line x1="10" y1="14" x2="21" y2="3"/>
               </svg>
-              Learn more about email collection settings
+              Learn more
             </a>
+            <button class="spz-email-recheck-btn" id="spz-recheck-email-btn">Re-check</button>
+            <button class="spz-email-debug-btn" id="spz-debug-email-btn">Debug Console</button>
           </div>
-          <p class="spz-email-tip">Tip: Ask the form owner to disable email collection, or use the "Don't collect" / "Responder can type email" option instead.</p>
+          <p class="spz-email-tip">Not working? Run <code>debugEmailCollection()</code> in console, or click "Debug Console" above for full detection details.</p>
         </div>
       </div>
     </div>
@@ -5862,6 +6649,40 @@ function showEmailCollectionModal() {
         border-color: rgba(255, 68, 68, 0.5);
         color: var(--spammerz-text);
       }
+      .spz-email-debug-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--spammerz-surface);
+        border: 1px solid var(--spammerz-accent-dim);
+        border-radius: 8px;
+        color: var(--spammerz-accent);
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .spz-email-debug-btn:hover {
+        border-color: var(--spammerz-accent);
+        background: rgba(57, 255, 20, 0.1);
+      }
+      .spz-email-recheck-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--spammerz-surface);
+        border: 1px solid var(--spammerz-border);
+        border-radius: 8px;
+        color: var(--spammerz-text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .spz-email-recheck-btn:hover {
+        border-color: var(--spammerz-accent);
+        color: var(--spammerz-accent);
+      }
       .spz-email-tip {
         margin: 0;
         padding: 12px 16px;
@@ -5873,11 +6694,39 @@ function showEmailCollectionModal() {
         line-height: 1.5;
         text-align: center;
       }
+      .spz-email-tip code {
+        background: var(--spammerz-surface);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        color: var(--spammerz-accent);
+      }
     `;
     document.head.appendChild(style);
   }
 
   document.body.appendChild(modal);
+
+  // Add debug button handlers
+  document.getElementById('spz-debug-email-btn')?.addEventListener('click', () => {
+    console.log('[SpammerZ] Running full email collection debug...');
+    if (window.debugEmailCollection) {
+      window.debugEmailCollection();
+    }
+    console.log('=== Manual Debug ===');
+    console.log('Enabled:', detectEmailCollectionEnabledV2().enabled);
+    alert('Debug info logged to console. Press F12 to view.');
+  });
+
+  document.getElementById('spz-recheck-email-btn')?.addEventListener('click', () => {
+    const result = detectEmailCollectionEnabledV2();
+    if (!result.enabled) {
+      modal.remove();
+      console.log('[SpammerZ] Email collection re-check: FALSE - Modal removed (form is safe to use)');
+    } else {
+      alert('Email collection is still enabled.\n\nReason: ' + result.reason + '\n\nPlease disable email collection in form settings.');
+    }
+  });
 }
 
 function logFormData(formData, options = {}) {

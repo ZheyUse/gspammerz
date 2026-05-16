@@ -50,6 +50,7 @@ let state = {
   lastResult: null,
   autoNameConfig: null,
   autoAddressConfig: null,
+  autoNationalityConfig: null,
 };
 
 /** @type {AbortController | null} */
@@ -58,10 +59,64 @@ let abortController = null;
 // Global state (default enabled)
 const isEnabled = true;
 
+const SPAMMERZ_SAVED_CONFIG_KEY = 'spammerzSavedConfigsV1';
+
+function getStorageApi() {
+  return window.chrome?.storage?.local || null;
+}
+
+async function loadSavedConfigs() {
+  const storage = getStorageApi();
+  if (storage) {
+    return new Promise(resolve => {
+      storage.get([SPAMMERZ_SAVED_CONFIG_KEY], result => {
+        resolve(result?.[SPAMMERZ_SAVED_CONFIG_KEY] || {});
+      });
+    });
+  }
+
+  try {
+    return JSON.parse(window.localStorage.getItem(SPAMMERZ_SAVED_CONFIG_KEY) || '{}') || {};
+  } catch (err) {
+    console.warn('[SpammerZ] Failed to load saved configs:', err);
+    return {};
+  }
+}
+
+function saveConfigsFromState(nextState) {
+  const saved = {
+    autoNameConfig: nextState.autoNameConfig || null,
+    autoAddressConfig: nextState.autoAddressConfig || null,
+    autoNationalityConfig: nextState.autoNationalityConfig || null,
+  };
+
+  const storage = getStorageApi();
+  if (storage) {
+    storage.set({ [SPAMMERZ_SAVED_CONFIG_KEY]: saved }, () => {
+      if (window.chrome?.runtime?.lastError) {
+        console.warn('[SpammerZ] Failed to save configs:', window.chrome.runtime.lastError.message);
+      }
+    });
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(SPAMMERZ_SAVED_CONFIG_KEY, JSON.stringify(saved));
+  } catch (err) {
+    console.warn('[SpammerZ] Failed to save configs:', err);
+  }
+}
+
+function hydrateSavedConfig(defaultConfig, savedConfig) {
+  return savedConfig && typeof savedConfig === 'object'
+    ? { ...defaultConfig, ...savedConfig }
+    : defaultConfig;
+}
+
 /**
  * Initialize after HTM loads
  */
-function init() {
+async function init() {
   // htm is already set globally by the IIFE
   window.spammerzEnabled = isEnabled;
 
@@ -79,8 +134,16 @@ function init() {
 
   // Initialize default answer configs
   state.answers = formData.allQuestions.map(q => createDefaultConfig(q));
-  if (!state.autoNameConfig) state.autoNameConfig = createDefaultNameConfig();
-  if (!state.autoAddressConfig && window.createDefaultAddressConfig) state.autoAddressConfig = window.createDefaultAddressConfig();
+  const savedConfigs = await loadSavedConfigs();
+  if (!state.autoNameConfig) {
+    state.autoNameConfig = hydrateSavedConfig(createDefaultNameConfig(), savedConfigs.autoNameConfig);
+  }
+  if (!state.autoAddressConfig && window.createDefaultAddressConfig) {
+    state.autoAddressConfig = hydrateSavedConfig(window.createDefaultAddressConfig(), savedConfigs.autoAddressConfig);
+  }
+  if (!state.autoNationalityConfig && window.createDefaultNationalityConfig) {
+    state.autoNationalityConfig = hydrateSavedConfig(window.createDefaultNationalityConfig(), savedConfigs.autoNationalityConfig);
+  }
 
   // Load and render UI
   loadUI();
@@ -98,6 +161,7 @@ function init() {
         formData = result;
         state.answers = formData.allQuestions.map(q => createDefaultConfig(q));
         if (!state.autoNameConfig) state.autoNameConfig = createDefaultNameConfig();
+        saveConfigsFromState(state);
         loadUI();
       }
       return result;
@@ -147,6 +211,7 @@ function handleMessage(msg, sender, sendResponse) {
  */
 function updateState(updates) {
   state = { ...state, ...updates };
+  saveConfigsFromState(state);
   if (window.spammerzUpdateState) {
     window.spammerzUpdateState(state);
   }
@@ -406,31 +471,54 @@ function buildPages(rawItems) {
 function parseQuestion(item, pageIndex) {
   if (!item[4]?.[0]) return null;
 
+  const answerGroups = item[4];
   const entry = item[4][0];
   const entryId = `entry.${entry[0]}`;
   const typeInt = item[3] ?? 0;
   let type = TYPE_MAP[typeInt] ?? 'unknown';
-  const required = entry[2] === 1;
+  const isGridShape = looksLikeGridQuestion(type, typeInt, answerGroups);
+  if (isGridShape) {
+    type = type === 'checkbox_grid' ? 'checkbox_grid' : 'grid';
+  }
+  const required = isGridShape
+    ? answerGroups.some(group => group?.[2] === 1)
+    : entry[2] === 1;
   const title = item[1] ?? 'Question';
   const description = item[2] ?? '';
 
+  const gridColumns = [];
+  const gridRowIds = [];
+  if (isGridShape) {
+    for (const group of answerGroups) {
+      if (group?.[0] != null) gridRowIds.push(`entry.${group[0]}`);
+    }
+    const firstOptions = answerGroups.find(group => Array.isArray(group?.[1]))?.[1];
+    if (Array.isArray(firstOptions)) {
+      for (const col of firstOptions) {
+        if (col?.[0]) gridColumns.push(String(col[0]));
+      }
+    }
+  } else if ((type === 'grid' || type === 'checkbox_grid') && Array.isArray(item[4][1]?.[1])) {
+    for (const col of item[4][1][1]) {
+      if (col[0]) gridColumns.push(String(col[0]));
+    }
+  }
+
   const options = [];
-  if (Array.isArray(entry[1])) {
+  if (isGridShape) {
+    const domRows = findGridRowLabelsFromDom(title);
+    answerGroups.forEach((group, idx) => {
+      options.push(getGridRowLabel(group, idx, gridColumns, domRows[idx]));
+    });
+  } else if (Array.isArray(entry[1])) {
     for (const opt of entry[1]) {
       if (opt[0]) options.push(opt[0]);
     }
   }
 
-  const scaleGuess = inferLinearScaleFallback(type, title, entry, options);
+  const scaleGuess = isGridShape ? null : inferLinearScaleFallback(type, title, entry, options);
   if (scaleGuess) {
     type = 'linear_scale';
-  }
-
-  const gridColumns = [];
-  if ((type === 'grid' || type === 'checkbox_grid') && Array.isArray(item[4][1]?.[1])) {
-    for (const col of item[4][1][1]) {
-      if (col[0]) gridColumns.push(col[0]);
-    }
   }
 
   const question = {
@@ -459,8 +547,86 @@ function parseQuestion(item, pageIndex) {
   if (gridColumns.length) {
     question.gridColumns = gridColumns;
   }
+  if (isGridShape && options.length) {
+    question.gridRows = options;
+  }
+  if (gridRowIds.length) {
+    question.gridRowIds = gridRowIds;
+  }
 
   return question;
+}
+
+function looksLikeGridQuestion(type, typeInt, answerGroups) {
+  if (type === 'grid' || type === 'checkbox_grid') return true;
+  if (typeInt === 7 || typeInt === 27 || typeInt === 73) return true;
+  if (!Array.isArray(answerGroups) || answerGroups.length <= 1) return false;
+  return answerGroups.every(group => group?.[0] != null && Array.isArray(group?.[1]));
+}
+
+function getGridRowLabel(group, idx, gridColumns = [], domFallback = '') {
+  const candidates = [group?.[3], group?.[4], group?.[5]];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  const columnSet = new Set(gridColumns.map(value => normalizeGridLabel(value)));
+  const strings = collectNestedStrings(group)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .filter(value => normalizeGridLabel(value) !== normalizeGridLabel(`entry.${group?.[0]}`))
+    .filter(value => !columnSet.has(normalizeGridLabel(value)))
+    .filter(value => !/^(__other_option__|other|row\s*\d+|\d+)$/.test(normalizeGridLabel(value)));
+  const best = strings.sort((a, b) => b.length - a.length)[0];
+  if (best) return best;
+  if (domFallback) return domFallback;
+  return `Row ${idx + 1}`;
+}
+
+function collectNestedStrings(value, result = []) {
+  if (typeof value === 'string') {
+    result.push(value);
+    return result;
+  }
+  if (Array.isArray(value)) {
+    value.forEach(item => collectNestedStrings(item, result));
+    return result;
+  }
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(item => collectNestedStrings(item, result));
+  }
+  return result;
+}
+
+function normalizeGridLabel(value) {
+  return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function findGridRowLabelsFromDom(title) {
+  const normalizedTitle = normalizeGridLabel(title);
+  const blocks = Array.from(document.querySelectorAll('[role="listitem"]'));
+  const block = blocks.find(item => {
+    const heading = item.querySelector('[role="heading"], .freebirdFormviewerViewItemsItemItemTitle');
+    return normalizeGridLabel(heading?.textContent || '').includes(normalizedTitle);
+  });
+  if (!block) return [];
+
+  const tableRows = Array.from(block.querySelectorAll('tr'))
+    .map(row => normalizeVisibleText(row.querySelector('td, th')?.textContent || ''))
+    .filter(Boolean);
+  if (tableRows.length) return tableRows;
+
+  const rowGroups = Array.from(block.querySelectorAll('[role="radiogroup"], [role="group"]'));
+  return rowGroups
+    .map(group => {
+      const labelId = group.getAttribute('aria-labelledby');
+      const label = labelId ? document.getElementById(labelId)?.textContent : '';
+      return normalizeVisibleText(label || group.textContent || '');
+    })
+    .filter(Boolean);
+}
+
+function normalizeVisibleText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 function inferLinearScaleFallback(currentType, title, entry, options) {
@@ -491,9 +657,10 @@ const TYPE_MAP = {
   3: 'dropdown',
   4: 'checkbox',
   5: 'linear_scale',
-  7: 'date',
+  7: 'grid',
   8: 'time',
-  9: 'grid',
+  9: 'date',
+  10: 'time',
   18: 'rating',
   27: 'checkbox_grid',
   73: 'checkbox_grid',
@@ -560,7 +727,9 @@ function resolveDelay(baseMs, randomize) {
 }
 
 function createDefaultConfig(question) {
-  let values = [...question.options];
+  let values = question.type === 'grid' || question.type === 'checkbox_grid'
+    ? [...(question.gridColumns || question.gridCols || [])]
+    : [...question.options];
   if (question.type === 'linear_scale') {
     const scaleMin = Number.isFinite(question.scaleMin) ? question.scaleMin : 1;
     const scaleMax = Number.isFinite(question.scaleMax) ? question.scaleMax : Math.max(scaleMin, 5);
@@ -657,4 +826,9 @@ function waitForForm(callback) {
   }
 }
 
-waitForForm(init);
+waitForForm(() => {
+  init().catch(err => {
+    console.error('[SpammerZ] Failed to initialize:', err);
+    showError('SpammerZ failed to initialize. Check the console for details.');
+  });
+});

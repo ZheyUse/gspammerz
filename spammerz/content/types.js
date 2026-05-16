@@ -4,7 +4,7 @@
  */
 
 /**
- * @typedef {'short_text' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'dropdown' | 'linear_scale' | 'date' | 'time' | 'grid' | 'unknown'} QuestionType
+ * @typedef {'short_text' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'dropdown' | 'linear_scale' | 'date' | 'time' | 'grid' | 'checkbox_grid' | 'unknown'} QuestionType
  */
 
 /**
@@ -20,6 +20,8 @@
  * @property {boolean} required - Is required
  * @property {string[]} options - Available options for MCQ/checkbox/dropdown
  * @property {string[]} [gridColumns] - Column headers for grid type
+ * @property {string[]} [gridRows] - Row labels for grid type
+ * @property {string[]} [gridRowIds] - entry IDs for each grid row
  * @property {number} [scaleMin] - Min value for linear scale
  * @property {number} [scaleMax] - Max value for linear scale
  * @property {string} [scaleMinLabel] - Label for min value

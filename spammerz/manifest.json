@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "SpammerZ",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Bulk submit Google Forms with random answers — serverless",
   "author": "SpammerZ",
 
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "storage"
   ],
 
   "host_permissions": [

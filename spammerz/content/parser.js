@@ -14,10 +14,13 @@ const TYPE_MAP = {
   3: 'dropdown',
   4: 'checkbox',
   5: 'linear_scale',
-  7: 'date',
+  7: 'grid',
   8: 'time',
-  9: 'grid',
+  9: 'date',
+  10: 'time',
   18: 'rating',
+  27: 'checkbox_grid',
+  73: 'checkbox_grid',
 };
 
 /**
@@ -73,8 +76,8 @@ function buildPages(rawItems) {
   for (const item of rawItems) {
     if (!Array.isArray(item)) continue;
 
-    // Type 8 = page break
-    if (item[3] === 8) {
+    // Page break: type 8 with no entry data.
+    if (item[3] === 8 && !item[4]?.[0]) {
       current = {
         index: pages.length,
         title: item[1] ?? `Page ${pages.length + 1}`,
@@ -104,33 +107,56 @@ function parseQuestion(item, pageIndex) {
   // Entry data is in item[4][0]
   if (!item[4]?.[0]) return null;
 
+  const answerGroups = item[4];
   const entry = item[4][0];
   const entryId = `entry.${entry[0]}`;
   const typeInt = item[3] ?? 0;
   let type = TYPE_MAP[typeInt] ?? 'unknown';
-  const required = entry[2] === 1;
+  const isGridShape = looksLikeGridQuestion(type, typeInt, answerGroups);
+  if (isGridShape) {
+    type = type === 'checkbox_grid' ? 'checkbox_grid' : 'grid';
+  }
+  const required = isGridShape
+    ? answerGroups.some(group => group?.[2] === 1)
+    : entry[2] === 1;
   const title = item[1] ?? 'Question';
   const description = item[2] ?? '';
 
   /** @type {string[]} */
+  const gridColumns = [];
+  /** @type {string[]} */
+  const gridRowIds = [];
+  if (isGridShape) {
+    for (const group of answerGroups) {
+      if (group?.[0] != null) gridRowIds.push(`entry.${group[0]}`);
+    }
+    const firstOptions = answerGroups.find(group => Array.isArray(group?.[1]))?.[1];
+    if (Array.isArray(firstOptions)) {
+      for (const col of firstOptions) {
+        if (col?.[0]) gridColumns.push(String(col[0]));
+      }
+    }
+  } else if ((type === 'grid' || type === 'checkbox_grid') && Array.isArray(item[4][1]?.[1])) {
+    for (const col of item[4][1][1]) {
+      if (col[0]) gridColumns.push(String(col[0]));
+    }
+  }
+
+  /** @type {string[]} */
   const options = [];
-  if (Array.isArray(entry[1])) {
+  if (isGridShape) {
+    answerGroups.forEach((group, idx) => {
+      options.push(getGridRowLabel(group, idx, gridColumns));
+    });
+  } else if (Array.isArray(entry[1])) {
     for (const opt of entry[1]) {
       if (opt[0]) options.push(opt[0]);
     }
   }
 
-  const scaleGuess = inferLinearScaleFallback(type, title, entry, options);
+  const scaleGuess = isGridShape ? null : inferLinearScaleFallback(type, title, entry, options);
   if (scaleGuess) {
     type = 'linear_scale';
-  }
-
-  /** @type {string[]} */
-  const gridColumns = [];
-  if ((type === 'grid' || type === 'checkbox_grid') && Array.isArray(item[4][1]?.[1])) {
-    for (const col of item[4][1][1]) {
-      if (col[0]) gridColumns.push(col[0]);
-    }
   }
 
   /** @type {FormQuestion} */
@@ -161,8 +187,57 @@ function parseQuestion(item, pageIndex) {
   if (gridColumns.length) {
     question.gridColumns = gridColumns;
   }
+  if (isGridShape && options.length) {
+    question.gridRows = options;
+  }
+  if (gridRowIds.length) {
+    question.gridRowIds = gridRowIds;
+  }
 
   return question;
+}
+
+function looksLikeGridQuestion(type, typeInt, answerGroups) {
+  if (type === 'grid' || type === 'checkbox_grid') return true;
+  if (typeInt === 7 || typeInt === 27 || typeInt === 73) return true;
+  if (!Array.isArray(answerGroups) || answerGroups.length <= 1) return false;
+  return answerGroups.every(group => group?.[0] != null && Array.isArray(group?.[1]));
+}
+
+function getGridRowLabel(group, idx, gridColumns = []) {
+  const candidates = [group?.[3], group?.[4], group?.[5]];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  const columnSet = new Set(gridColumns.map(value => normalizeGridLabel(value)));
+  const strings = collectNestedStrings(group)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .filter(value => normalizeGridLabel(value) !== normalizeGridLabel(`entry.${group?.[0]}`))
+    .filter(value => !columnSet.has(normalizeGridLabel(value)))
+    .filter(value => !/^(__other_option__|other|row\s*\d+|\d+)$/.test(normalizeGridLabel(value)));
+  const best = strings.sort((a, b) => b.length - a.length)[0];
+  if (best) return best;
+  return `Row ${idx + 1}`;
+}
+
+function collectNestedStrings(value, result = []) {
+  if (typeof value === 'string') {
+    result.push(value);
+    return result;
+  }
+  if (Array.isArray(value)) {
+    value.forEach(item => collectNestedStrings(item, result));
+    return result;
+  }
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(item => collectNestedStrings(item, result));
+  }
+  return result;
+}
+
+function normalizeGridLabel(value) {
+  return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function inferLinearScaleFallback(currentType, title, entry, options) {

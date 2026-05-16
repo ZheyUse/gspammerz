@@ -1166,6 +1166,53 @@
   accent-color: var(--spammerz-accent);
 }
 
+.spammerz-grid-row-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.spammerz-grid-detected-badge {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  font-size: 12px;
+}
+
+.spammerz-grid-row-card {
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-card);
+  overflow: hidden;
+}
+
+.spammerz-grid-row-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--spammerz-border);
+  background: var(--spammerz-surface);
+}
+
+.spammerz-grid-row-title {
+  min-width: 0;
+  color: var(--spammerz-text);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.spammerz-grid-row-weights {
+  padding: 10px 12px;
+}
+
 /* === Unknown === */
 .spammerz-unknown {
   display: inline-block;

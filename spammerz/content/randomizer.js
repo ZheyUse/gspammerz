@@ -70,8 +70,9 @@ export function resolveDelay(baseMs, randomize, jitterAmount = 0.5) {
  * @returns {AnswerConfig}
  */
 export function createDefaultConfig(question) {
-  let values = [...question.options];
-  const randomize = values.length > 1;
+  let values = question.type === 'grid' || question.type === 'checkbox_grid'
+    ? [...(question.gridColumns || question.gridCols || [])]
+    : [...question.options];
 
   // Handle special types
   if (question.type === 'linear_scale' && question.scaleMin !== undefined) {
@@ -84,6 +85,7 @@ export function createDefaultConfig(question) {
   if (!values.length) {
     values = [''];
   }
+  const randomize = values.length > 1;
 
   /** @type {AnswerConfig} */
   const config = {
