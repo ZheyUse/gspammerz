@@ -6,6 +6,38 @@
 
 ---
 
+## Installation
+
+### Prerequisites
+
+First, install Git using Windows Package Manager:
+
+```powershell
+winget install --id Git.Git -e --source winget
+```
+
+After installation, **restart your terminal** to ensure Git is available.
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/ZheyUse/gspammerz.git
+```
+
+### 2. Load in Chrome
+
+1. Open Chrome and go to `chrome://extensions/`
+2. Enable **Developer mode** (toggle in top right)
+3. Click **"Load unpacked"**
+4. Select the `spammerz` folder
+5. The extension is ready!
+
+### 3. (Optional) Pin the extension
+
+Click the puzzle piece icon in Chrome's toolbar → find SpammerZ → click the pin icon to keep it visible.
+
+---
+
 ## What is SpammerZ?
 
 SpammerZ is a Chrome browser extension that automates Google Form submissions. It parses any public Google Form, lets you configure answer randomization, and submits hundreds of responses automatically.
@@ -97,30 +129,6 @@ SpammerZ uses curated local data files for realistic name and profession generat
 | Last Names (Filipino) | `Names/LastName/lastname.md` | 355 surnames |
 | Courses / Strands | `options/courses.md` | 441+ options |
 | Professions | `options/profession.md` | 721 jobs |
-
----
-
-## Installation
-
-### 1. Download / Clone
-
-```bash
-# Clone or download this repository
-git clone https://github.com/ZheyUse/gspammerz.git
-# Or just copy the spammerz folder
-```
-
-### 2. Load in Chrome
-
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable **Developer mode** (toggle in top right)
-3. Click **"Load unpacked"**
-4. Select the `spammerz` folder
-5. The extension is ready!
-
-### 3. (Optional) Pin the extension
-
-Click the puzzle piece icon in Chrome's toolbar → find SpammerZ → click the pin icon to keep it visible.
 
 ---
 
