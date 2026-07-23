@@ -3031,3 +3031,159 @@
   color: var(--spammerz-text-muted);
   font-style: italic;
 }
+
+/* === Numeric Count Config === */
+.spammerz-numeric-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.spammerz-numeric-type-row {
+  display: flex;
+  align-items: center;
+}
+.spammerz-numeric-type-row .spammerz-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.spammerz-numeric-type-row .spammerz-toggle input {
+  display: none;
+}
+
+/* === AI Tools Config === */
+.spammerz-ai-tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.spammerz-ai-tools-enable {
+  display: flex;
+  align-items: center;
+}
+.spammerz-ai-tools-add-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.spammerz-ai-add-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--spammerz-surface);
+  border: 1px solid var(--spammerz-border);
+  border-radius: 4px;
+  color: var(--spammerz-text);
+  font-size: 12px;
+  pointer-events: auto;
+}
+.spammerz-ai-add-input::placeholder {
+  color: var(--spammerz-text-muted);
+}
+.spammerz-ai-add-input:focus {
+  outline: none;
+  border-color: var(--spammerz-accent);
+}
+.spammerz-ai-add-btn {
+  padding: 6px 14px;
+  background: var(--spammerz-accent);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.spammerz-ai-add-btn:hover {
+  transform: scale(1.1);
+}
+.spammerz-ai-tools-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--spammerz-surface);
+  border-radius: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.spammerz-ai-tools-grid.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.spammerz-ai-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--spammerz-border);
+}
+.spammerz-ai-tool-row:last-child {
+  border-bottom: none;
+}
+.spammerz-ai-tool-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 110px;
+}
+.spammerz-ai-tool-checkbox input {
+  cursor: pointer;
+  accent-color: var(--spammerz-accent);
+}
+.spammerz-ai-tool-name {
+  font-size: 12px;
+  color: var(--spammerz-text);
+}
+.spammerz-ai-tool-slider-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.spammerz-ai-tool-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--spammerz-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.spammerz-ai-tool-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--spammerz-accent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.spammerz-ai-tool-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.spammerz-ai-tool-weight {
+  font-size: 11px;
+  color: var(--spammerz-accent);
+  min-width: 30px;
+  text-align: right;
+}
+.spammerz-ai-tool-remove {
+  padding: 2px 6px;
+  background: transparent;
+  color: var(--spammerz-error);
+  border: 1px solid var(--spammerz-error);
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.spammerz-ai-tool-remove:hover {
+  background: var(--spammerz-error);
+  color: #fff;
+}

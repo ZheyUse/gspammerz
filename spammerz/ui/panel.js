@@ -2581,8 +2581,202 @@ function isLikelyScoreField(title) {
 }
 
 /**
- * Smart consent/agreement field detection
+ * Smart Numeric Count / Number of field detection
+ * Detects fields asking for a quantity/number as plain text input (e.g., "Number of hours")
  */
+function isLikelyNumericCountField(title) {
+  const t = title.toLowerCase();
+
+  // ============================================================
+  // FALSE POSITIVES - these have specific handlers
+  // ============================================================
+
+  // Age fields
+  if (/\byour?\s+(current\s+)?age\b/i.test(t)) return false;
+  if (/\bhow\s+old\b/i.test(t)) return false;
+  if (/\b(children|kids?)\s+age\b/i.test(t)) return false;
+
+  // Phone numbers
+  if (/\b(phone|mobile)\s*(number)?$/i.test(t)) return false;
+  if (/\bemail\s*(address)?$/i.test(t)) return false;
+
+  // Financial amounts (money, NOT counts)
+  if (/\b(salary|income|earning|money|debt|rent|budget)\b/i.test(t) && !/\bhow\s+many\b/i.test(t)) {
+    // Allow "how many" for things like "how many credit cards"
+    if (!/\bhow\s+many\b/i.test(t)) return false;
+  }
+
+  // Height/Weight (unit-based, not counts)
+  if (/\b(your\s+)?(height|weight|tall)\b/i.test(t) && !/\bhow\s+many\b/i.test(t)) return false;
+
+  // House/Building numbers (address components)
+  if (/\b(no\.?|number)\s+(of\s+)?(street|avenue|road|house|building|apartment|floor)\b/i.test(t)) return false;
+
+  // Medical measurements (heart rate, temperature, blood pressure)
+  if (/\b(heart\s*rate|blood\s*pressure|temperature|fever)\b/i.test(t)) return false;
+
+  // GPA (has its own handler)
+  if (isLikelyGPAField(title)) return false;
+
+  // ============================================================
+  // TRUE POSITIVES - generic numeric count fields
+  // ============================================================
+
+  const patterns = [
+    // =====================
+    // TIME & DURATION
+    // =====================
+
+    // Duration patterns (hours/minutes spent)
+    /\bhow\s+many\s+hours?\b/i,
+    /\bhow\s+many\s+minutes?\b/i,
+    /\bhow\s+many\s+seconds?\b/i,
+    /\bnumber\s+of\s+hours?\b/i,
+    /\bnumber\s+of\s+minutes?\b/i,
+    /\b(total|daily|weekly|monthly|average)\s+(number\s+of\s+)?hours?\b/i,
+
+    // Hours/minutes spent on something
+    /\bhours?\s+(spent|on|for|studying|working|exercising|playing|watching|using)\b/i,
+    /\bminutes?\s+(spent|on|for|exercising|commuting|taking)\b/i,
+
+    // Time duration "how long"
+    /\bhow\s+(long|much)\s+.*(take|does\s+it)\b/i,
+
+    // Per day/week/month/year frequency
+    /\beach\s+(day|week|month|year)\b/i,
+    /\bper\s+(day|week|month|year)\b/i,
+
+    // =====================
+    // FREQUENCY & TIMES
+    // =====================
+
+    // "How many times" questions
+    /\bhow\s+many\s+times\b/i,
+    /\bnumber\s+of\s+times\b/i,
+
+    // Frequency/occurrences
+    /\bhow\s+often\b/i,
+    /\bfrequency\b/i,
+    /\boften\s+do\s+you\b/i,
+
+    // Visits, visits, trips
+    /\bhow\s+many\s+(visits?|trips?|appointments?)\b/i,
+    /\bhow\s+many\s+times\s+(do|have|did|will)\b/i,
+
+    // =====================
+    // QUANTITY & OWNERSHIP
+    // =====================
+
+    // "How many" with possessions/ownership
+    /\bhow\s+many\s+(siblings?|brothers?|sisters?|pets?|dogs?|cats?|cats)\b/i,
+    /\bhow\s+many\s+(books?|cups?|glasses?|bottles?|cans?)\b/i,
+    /\bhow\s+many\s+(cars?|vehicles?|bikes?|motorcycles?)\b/i,
+    /\bhow\s+many\s+(phones?|mobile\s+phones?|laptops?|computers?|devices?)\b/i,
+    /\bhow\s+many\s+(items?|objects?|pieces?|cards?)\b/i,
+
+    // "How many" with habits/consumption
+    /\bhow\s+many\s+(meals?|snacks?|drinks?|cups?|glasses?|bottles?)\b/i,
+    /\bhow\s+many\s+(cigarettes?|medications?|medicines?)\b/i,
+    /\bhow\s+many\s+(emails?|messages?|calls?|texts?)\b/i,
+
+    // "How many" with activities
+    /\bhow\s+many\s+(courses?|classes?|subjects?|assignments?)\b/i,
+    /\bhow\s+many\s+(certificates?|diplomas?|degrees?)\b/i,
+    /\bhow\s+many\s+(seminars?|workshops?|trainings?)\b/i,
+    /\bhow\s+many\s+(books?\s+(did|have|read|borrowed|borrowed))\b/i,
+    /\bhow\s+many\s+(appointments?)\b/i,
+
+    // "How many" with online/digital
+    /\bhow\s+many\s+(accounts?|profiles?|subscriptions?)\b/i,
+    /\bhow\s+many\s+(apps?|software|programs)\b/i,
+    /\bhow\s+many\s+(passwords?|usernames?)\b/i,
+    /\bhow\s+many\s+(monitors?|screens?)\b/i,
+    /\bhow\s+many\s+(online\s+)?(courses?|classes?)\b/i,
+
+    // "How many" with languages/professional
+    /\bhow\s+many\s+(languages?|programming\s+languages?)\b/i,
+
+    // "How many" with general quantities
+    /\bhow\s+many\s+(times?|hours?)\s+(do|did|have|does)\b/i,
+
+    // "Number/quantity of" with possessions
+    /\bnumber\s+of\s+(books?|cars?|phones?|devices?|items?)\b/i,
+    /\bquantity\s+of\b/i,
+
+    // =====================
+    // GENERAL PATTERNS
+    // =====================
+
+    // Total/daily average
+    /\b(total|daily|weekly|monthly|average|overall)\s+number\b/i,
+    /\baverage\s+(number|hours?|times?)\b/i,
+
+    // Average/Total + specific contexts
+    /\b(total|daily|average)\s+(hours?|minutes?|times)\b/i,
+
+    // "Excluding/including" with hours/numbers (study patterns)
+    /\b(excluding?|including)\b/i.test(t) && /\b(hours?|classes?|minutes?)\b/i.test(t),
+
+    // Daily average + hours
+    /\bdaily\s+average\s+(hours?|minutes?)\b/i,
+    /\bhow\s+many\s+hours?\s+(do|does|did)\b/,
+
+    // Storage/usage
+    /\bhow\s+much\s+(storage|space|data|storage\s+have)\b/i.test(t) && !/\bmoney\b/i.test(t),
+  ];
+
+  for (const pattern of patterns) {
+    if (typeof pattern === 'boolean' ? pattern : pattern.test(t)) return true;
+  }
+
+  // ============================================================
+  // CONTEXT FALLBACK - generic "how many" without false positives
+  // ============================================================
+
+  // If it starts with "How many" or "Number of" and hasn't matched above
+  if (/\bhow\s+many\b/i.test(t) || /\bnumber\s+of\b/i.test(t)) {
+    // Make sure it's not a specific field type
+    if (!isLikelyAgeField(t) && !isLikelyHouseholdSizeField(title) && !isLikelyChildrenCountField(title)
+      && !isLikelyYearLevelField(title) && !isLikelyScoreField(title) && !isLikelyGPAField(title)
+      && !isLikelyOccupationField(title)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Smart AI tools field detection
+ */
+function isLikelyAIToolsField(title) {
+  const t = title.toLowerCase();
+
+  // AI tools / platforms / software questions
+  const patterns = [
+    /\bai\s+(tools|platforms|software|apps?)\b/i,
+    /\bwhat\s+ai\s+(tools?|platforms?|software?|apps?)\b/i,
+    /\bai\s+tools?\s+(do|are|have|use)\b/i,
+    /\bai\s+platforms?\s+(do|are|have|use)\b/i,
+    /\bwhich\s+ai\s+(tools?|platforms?|software?|apps?)\b/i,
+    /\bdo\s+you\s+use\s+ai\s+(tools?|platforms?)\b/i,
+    /\busing\s+(any|a)\s+ai\s+(tools?|platforms?)\b/i,
+    /\bai\s+(chat)?bots?\s+(do|are|have|use)\b/i,
+    /\bai\s+assistant\s+(do|are|have|use)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    if (pattern.test(t)) return true;
+  }
+
+  // Generic "what tools do you use for studying"
+  if (/\bwhat\s+(tools?|apps?|software)\s+(do|have|use)\s+(you\s+)?(for\s+)?(studying|learning|study)\b/i.test(t)) return true;
+  if (/\btools\s+(used|utilized)\s+(for|in)\s+(studying|learning|study)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
  * Smart consent/agreement field detection
  */
 function isLikelyConsentField(title) {
@@ -2740,6 +2934,8 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (isLikelyChildrenCountField(title)) return { ...base, fieldType: 'childrenCount' };
   if (isLikelyGPAField(title)) return { ...base, fieldType: 'gpa' };
   if (isLikelyScoreField(title)) return { ...base, fieldType: 'score' };
+  if (isLikelyNumericCountField(title)) return { ...base, fieldType: 'numericCount' };
+  if (isLikelyAIToolsField(title)) return { ...base, fieldType: 'aiTools' };
 
   return null;
 }
@@ -2929,6 +3125,107 @@ function createSmartSurveyConfigHtml(question, cfg, qIdx, binding) {
     `;
   }
 
+  if (binding.fieldType === 'numericCount') {
+    const numConfig = normalizeNumericCountConfig(cfg.numericCountConfig);
+    return `
+      <div class="spammerz-name-detected-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(label)}</strong></span>
+      </div>
+      <div class="spammerz-numeric-config">
+        <div class="spammerz-age-range-row">
+          <label><span>Min</span><input type="number" class="spammerz-numeric-count-input" data-qidx="${qIdx}" data-num-field="min" min="0" max="999" value="${numConfig.min}"></label>
+          <label><span>Max</span><input type="number" class="spammerz-numeric-count-input" data-qidx="${qIdx}" data-num-field="max" min="0" max="999" value="${numConfig.max}"></label>
+        </div>
+        <div class="spammerz-numeric-type-row">
+          <label class="spammerz-toggle">
+            <input type="checkbox" class="spammerz-numeric-decimal-checkbox" data-qidx="${qIdx}" ${numConfig.allowDecimal ? 'checked' : ''}>
+            <span class="spammerz-toggle-slider"></span>
+            <span>Allow decimals (e.g., 2.5)</span>
+          </label>
+        </div>
+        <div class="spammerz-numeric-type-row">
+          <label class="spammerz-toggle">
+            <input type="checkbox" class="spammerz-numeric-zero-checkbox" data-qidx="${qIdx}" ${numConfig.allowZero ? 'checked' : ''}>
+            <span class="spammerz-toggle-slider"></span>
+            <span>Allow 0 (as answer)</span>
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
+  if (binding.fieldType === 'aiTools') {
+    const aiConfig = cfg.aiToolsConfig || { tools: {} };
+    const defaultTools = ['ChatGPT', 'Claude', 'Gemini'];
+    const customTools = Object.keys(aiConfig.tools).filter(t => !defaultTools.includes(t));
+
+    return `
+      <div class="spammerz-name-detected-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(label)}</strong></span>
+      </div>
+      <div class="spammerz-ai-tools-list">
+        <div class="spammerz-ai-tools-enable">
+          <label class="spammerz-toggle">
+            <input type="checkbox" class="spammerz-ai-enable-checkbox" data-qidx="${qIdx}" ${aiConfig.enabled ? 'checked' : ''}>
+            <span class="spammerz-toggle-slider"></span>
+            <span>Enable AI Tools Selection</span>
+          </label>
+        </div>
+        <div class="spammerz-ai-tools-add-row">
+          <input type="text" class="spammerz-ai-add-input" data-qidx="${qIdx}" placeholder="Add custom AI tool...">
+          <button type="button" class="spammerz-ai-add-btn" data-qidx="${qIdx}" title="Add tool">+</button>
+        </div>
+        <div class="spammerz-ai-tools-grid ${aiConfig.enabled ? '' : 'disabled'}">
+          ${defaultTools.map(tool => {
+            const toolWeight = aiConfig.tools[tool] ?? 50;
+            return `
+              <div class="spammerz-ai-tool-row" data-tool="${escHtml(tool)}">
+                <label class="spammerz-ai-tool-checkbox">
+                  <input type="checkbox" class="spammerz-ai-tool-check" data-qidx="${qIdx}" value="${escHtml(tool)}" ${aiConfig.tools[tool] !== undefined ? 'checked' : ''}>
+                  <span class="spammerz-ai-tool-name">${escHtml(tool)}</span>
+                </label>
+                <div class="spammerz-ai-tool-slider-area">
+                  <input type="range" class="spammerz-ai-tool-slider"
+                         data-qidx="${qIdx}" data-tool="${escHtml(tool)}"
+                         value="${toolWeight}" min="0" max="100" step="1"
+                         ${!aiConfig.enabled || aiConfig.tools[tool] === undefined ? 'disabled' : ''}>
+                  <span class="spammerz-ai-tool-weight">${aiConfig.tools[tool] !== undefined ? toolWeight : 0}%</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+          ${customTools.map(tool => {
+            const toolWeight = aiConfig.tools[tool] ?? 50;
+            return `
+              <div class="spammerz-ai-tool-row" data-tool="${escHtml(tool)}">
+                <label class="spammerz-ai-tool-checkbox">
+                  <input type="checkbox" class="spammerz-ai-tool-check" data-qidx="${qIdx}" value="${escHtml(tool)}" checked>
+                  <span class="spammerz-ai-tool-name">${escHtml(tool)}</span>
+                </label>
+                <div class="spammerz-ai-tool-slider-area">
+                  <input type="range" class="spammerz-ai-tool-slider"
+                         data-qidx="${qIdx}" data-tool="${escHtml(tool)}"
+                         value="${toolWeight}" min="0" max="100" step="1"
+                         ${!aiConfig.enabled ? 'disabled' : ''}>
+                  <span class="spammerz-ai-tool-weight">${toolWeight}%</span>
+                </div>
+                <button type="button" class="spammerz-ai-tool-remove" data-qidx="${qIdx}" data-tool="${escHtml(tool)}" title="Remove">×</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="spammerz-name-detected-badge">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2957,10 +3254,12 @@ function getSmartSurveyFieldLabel(fieldType) {
     childrenCount: 'No. of Children',
     gpa: 'GPA / GWA / Final Grade',
     score: 'Score / Percentage',
+    numericCount: 'Numeric Count (Hours/Count)',
     consent: 'Consent / Eligibility',
     nationality: 'Nationality',
     ethnicity: 'Ethnicity',
     ancestry: 'Ancestry / Origin',
+    aiTools: 'AI Tools / Platforms',
   };
   return labels[fieldType] || fieldType;
 }
@@ -3024,6 +3323,31 @@ function normalizeScoreConfig(config = {}) {
   const max = Math.min(100, Math.max(0, Number.parseInt(config.max, 10) || 100));
   const allowDecimal = config.allowDecimal !== undefined ? Boolean(config.allowDecimal) : true;
   return min <= max ? { min, max, allowDecimal } : { min: max, max: min, allowDecimal };
+}
+
+function normalizeNumericCountConfig(config = {}) {
+  const min = Math.min(999, Math.max(0, Number.parseInt(config.min, 10) || 0));
+  const max = Math.min(999, Math.max(0, Number.parseInt(config.max, 10) || 10));
+  const allowDecimal = config.allowDecimal !== undefined ? Boolean(config.allowDecimal) : true;
+  const allowZero = config.allowZero !== undefined ? Boolean(config.allowZero) : true;
+  return min <= max ? { min, max, allowDecimal, allowZero } : { min: max, max: min, allowDecimal, allowZero };
+}
+
+/**
+ * Add a custom AI tool to the config and re-render
+ */
+function addCustomAITool(qIdx, toolName) {
+  const cfg = window.spammerzState.answers[qIdx];
+  if (!cfg) return;
+
+  cfg.aiToolsConfig = cfg.aiToolsConfig || { tools: {}, enabled: true };
+
+  // Only add if not already in default list and not already added
+  const defaultTools = ['ChatGPT', 'Claude', 'Gemini'];
+  if (!defaultTools.includes(toolName) && cfg.aiToolsConfig.tools[toolName] === undefined) {
+    cfg.aiToolsConfig.tools[toolName] = 50; // Default weight is 50%
+    window.renderSpammerZUI(formData, window.spammerzState, updateState);
+  }
 }
 
 function createRandomWeights(count) {
@@ -4623,6 +4947,16 @@ function generateSmartSurveyValue(fieldType, question, cfg, context) {
       }
       return String(Math.round(val));
     }
+    case 'numericCount': {
+      const numConfig = normalizeNumericCountConfig(cfg.numericCountConfig);
+      // If 0 is not allowed, start from 1
+      const effectiveMin = numConfig.allowZero ? numConfig.min : Math.max(1, numConfig.min);
+      const val = effectiveMin + Math.random() * (Math.max(effectiveMin, numConfig.max) - effectiveMin);
+      if (numConfig.allowDecimal) {
+        return val.toFixed(1);
+      }
+      return String(Math.round(val));
+    }
     case 'consent':
       return pickBestConsentOption(question);
     case 'nationality':
@@ -4631,6 +4965,32 @@ function generateSmartSurveyValue(fieldType, question, cfg, context) {
       return pickRandom(['Filipino', 'Chinese', 'Indian', 'Visayan', 'Ilocano', 'Cebuano', 'Moro', 'Igorot']);
     case 'ancestry':
       return pickRandom(['Filipino', 'Chinese', 'Spanish', 'American', 'Japanese', 'Korean', 'Indian']);
+    case 'aiTools': {
+      const aiConfig = cfg.aiToolsConfig || { tools: {}, enabled: false };
+
+      // If not enabled, pick 1 tool randomly from defaults
+      if (!aiConfig.enabled) {
+        const defaultTools = ['ChatGPT', 'Claude', 'Gemini'];
+        return [defaultTools[Math.floor(Math.random() * defaultTools.length)]];
+      }
+
+      // Filter to only enabled tools
+      const enabledTools = Object.keys(aiConfig.tools);
+      if (enabledTools.length === 0) {
+        return ['ChatGPT']; // Fallback
+      }
+
+      // Simple random selection weighted by slider values
+      const totalWeight = enabledTools.reduce((sum, tool) => sum + (aiConfig.tools[tool] || 50), 0);
+      let rand = Math.random() * totalWeight;
+
+      for (const tool of enabledTools) {
+        rand -= aiConfig.tools[tool] || 50;
+        if (rand <= 0) return [tool];
+      }
+
+      return [enabledTools[0]];
+    }
     default:
       return null;
   }
@@ -5762,6 +6122,159 @@ function attachAllListeners(formData, s, updateState) {
         ...(cfg.scoreConfig || {}),
         allowDecimal: e.target.checked,
       });
+    };
+  });
+
+  // Numeric count inputs and toggles
+  document.querySelectorAll('.spammerz-numeric-count-input').forEach(input => {
+    input.oninput = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const field = e.target.dataset.numField;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.numericCountConfig = normalizeNumericCountConfig({
+        ...(cfg.numericCountConfig || {}),
+        [field]: Number.parseInt(e.target.value, 10) || 0,
+      });
+    };
+  });
+
+  document.querySelectorAll('.spammerz-numeric-decimal-checkbox').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.numericCountConfig = normalizeNumericCountConfig({
+        ...(cfg.numericCountConfig || {}),
+        allowDecimal: e.target.checked,
+      });
+    };
+  });
+
+  document.querySelectorAll('.spammerz-numeric-zero-checkbox').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.numericCountConfig = normalizeNumericCountConfig({
+        ...(cfg.numericCountConfig || {}),
+        allowZero: e.target.checked,
+      });
+    };
+  });
+
+  // AI Tools enable checkbox (disables/enables all sliders)
+  document.querySelectorAll('.spammerz-ai-enable-checkbox').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      cfg.aiToolsConfig = {
+        ...(cfg.aiToolsConfig || {}),
+        enabled: e.target.checked,
+      };
+
+      // Update UI - disable/enable all sliders
+      const grid = document.querySelector(`.spammerz-ai-tools-grid[data-qidx="${qIdx}"]`);
+      if (!grid) return;
+
+      grid.classList.toggle('disabled', !e.target.checked);
+      grid.querySelectorAll('.spammerz-ai-tool-slider').forEach(slider => {
+        const tool = slider.dataset.tool;
+        const toolChecked = grid.querySelector(`.spammerz-ai-tool-check[value="${tool}"]`)?.checked;
+        slider.disabled = !e.target.checked || !toolChecked;
+      });
+    };
+  });
+
+  // AI Tools tool checkboxes
+  document.querySelectorAll('.spammerz-ai-tool-check').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const tool = e.target.value;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      cfg.aiToolsConfig = cfg.aiToolsConfig || { tools: {} };
+
+      if (e.target.checked) {
+        cfg.aiToolsConfig.tools[tool] = 50; // Default 50% weight
+      } else {
+        delete cfg.aiToolsConfig.tools[tool];
+      }
+
+      // Update UI - enable/disable slider
+      const slider = document.querySelector(`.spammerz-ai-tool-slider[data-qidx="${qIdx}"][data-tool="${tool}"]`);
+      if (slider) {
+        slider.disabled = !e.target.checked || !cfg.aiToolsConfig.enabled;
+        slider.value = e.target.checked ? 50 : 0;
+      }
+      const weightSpan = slider?.parentElement?.querySelector('.spammerz-ai-tool-weight');
+      if (weightSpan) {
+        weightSpan.textContent = e.target.checked ? '50%' : '0%';
+      }
+    };
+  });
+
+  // AI Tools sliders (only work when enabled AND tool is checked)
+  document.querySelectorAll('.spammerz-ai-tool-slider').forEach(slider => {
+    slider.oninput = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const tool = e.target.dataset.tool;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      const weight = parseInt(e.target.value, 10);
+
+      // Set via toggle (checkbox checked)
+      const weightSpan = e.target.parentElement?.querySelector('.spammerz-ai-tool-weight');
+      if (weightSpan) weightSpan.textContent = `${weight}%`;
+
+      // Only update if tool is already in config (checked)
+      if (cfg.aiToolsConfig?.tools?.[tool] !== undefined) {
+        cfg.aiToolsConfig.tools[tool] = weight;
+      }
+    };
+  });
+
+  // AI Tools add button (+) and input (Enter key)
+  document.querySelectorAll('.spammerz-ai-add-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const input = document.querySelector(`.spammerz-ai-add-input[data-qidx="${qIdx}"]`);
+      const toolName = input?.value.trim();
+      if (toolName) {
+        addCustomAITool(qIdx, toolName);
+        if (input) input.value = '';
+      }
+    };
+  });
+
+  document.querySelectorAll('.spammerz-ai-add-input').forEach(input => {
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+        const toolName = e.target.value.trim();
+        if (toolName) {
+          addCustomAITool(qIdx, toolName);
+          e.target.value = '';
+        }
+      }
+    };
+  });
+
+  // AI Tools remove button
+  document.querySelectorAll('.spammerz-ai-tool-remove').forEach(btn => {
+    btn.onclick = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const tool = e.target.dataset.tool;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg || !cfg.aiToolsConfig) return;
+
+      delete cfg.aiToolsConfig.tools[tool];
+      window.renderSpammerZUI(formData, window.spammerzState, updateState);
     };
   });
 
