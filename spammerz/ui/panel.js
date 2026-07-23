@@ -2472,6 +2472,117 @@ function isLikelyChildrenCountField(title) {
 }
 
 /**
+ * Smart GPA / GWA (Grade Point Average) field detection
+ * Comprehensive detection for academic performance metrics
+ */
+function isLikelyGPAField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  if (/\bgpa\s+(by|of|from|requirement|minimum|check)/i.test(t)) return false;
+  if (/\b(maintain|gpa|gpa\.)(s)?\b/i.test(t) && /\b(given|please)/i.test(t)) return false;
+  if (/\bgive\s+(your\s+)?gpa\b/i.test(t)) return false;
+
+  // Strong GPA/GWA patterns
+  const gpaPatterns = [
+    // Direct GPA/GWA
+    /\bgpa\b/i,
+    /\bg\.?p\.?\s*a\.?/i,
+    /\bgwa\b/i,
+    /\bgeneral\s+weighted\s+(average|mark)/i,
+    /\bweighted\s+(average|mean|mark|score)/i,
+    /\b(grade|course)\s+(point\s+)?average\b/i,
+    /\baverage\s+(grade|gpa|course|subject)\b/i,
+    /\bequivalent\s+(grade|gpa|mark)\b/i,
+
+    // Final Grade variants
+    /\bfinal\s+grade\b/i,
+    /\bfinal\s+(\w+\s+)?grade\b/i,
+    /\bgrade\s+in\s+(?:your\s+)?final\b/i,
+    /\boverall\s+grade\b/i,
+    /\btotal\s+grade\b/i,
+    /\bcurrent\s+grade\b/i,
+    /\bresult\s+grade\b/i,
+    /\bfinal\s+gwa\b/i,
+    /\bfinal\s+gpa\b/i,
+
+    // Grades in subjects (context-aware)
+    /\bgrade\s+(in|for)\s+(math|english|science|history|subject)/i,
+    /\bgrade\s+(received|obtained|achieved|earned)\b/i,
+
+    // Learning Progress / Learning Outcomes grade
+    /\blearning\s+(progress|outcome(s)?)\s+grade\b/i,
+
+    // Midterm/Finals
+    /\b(fin?al|midterm|term)\s+exam\s+grade\b/i,
+  ];
+
+  for (const pattern of gpaPatterns) {
+    if (pattern.test(t)) return true;
+  }
+
+  // Context-aware: grade-related terms near calculation terms
+  const hasGradeTerm = /\b(grade|mark|score|course)\b/i.test(t);
+  const hasAverageTerm = /\b(average|mean|point|gpa|weighted|equivalent|final|result|overall)\b/i.test(t);
+  if (hasGradeTerm && hasAverageTerm) return true;
+
+  // Grade + numeric scale indicator
+  if (/\bgrade\b/i.test(t) && /\b(\d+\.?\d*|1\.0|4\.0|5\.0|100)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart Score / Assessment Score / Result detection
+ * Covers percentage scores, ratings, and assessment results
+ */
+function isLikelyScoreField(title) {
+  const t = title.toLowerCase();
+
+  // False positives
+  if (/\bcredit\s+score\b/i.test(t)) return false;
+  if (/\bsatisfaction\s+(rating|score)\b/i.test(t)) return false;
+  if (/\bscore\s+(card|sheet)\b/i.test(t)) return false;
+
+  const scorePatterns = [
+    // Direct score
+    /\b(enter|input|your)\s+(score|mark|percentage)\b/i,
+    /\bscore\s*(obtained|received|earned)?\b/i,
+    /\b(percentage|percent)\s*(score|mark|received)?\b/i,
+
+    // Assessment results
+    /\bassessment\s+(score|mark|result)\b/i,
+    /\btest\s+(score|mark|result|grade)\b/i,
+    /\bexam\s+(grade|score|result)\b/i,
+    /\bquiz\s+(grade|score|result)\b/i,
+
+    // Performance scores
+    /\bperformance\s+(score|index|rating)\b/i,
+    /\bachievement\s+(score|level)\b/i,
+    /\btest\s+result\b/i && !/\bpass\b/i.test(t),
+
+    // Numeric scores
+    /\bi\.?q\.?\s*(score)?\b/i,
+    /\b(overall|today'?s?|current|total)\s+(score|mark)\b/i,
+    /\b( score| mark)$/i.test(t.trim()),
+
+    // "What's your score/procentage"
+    /\bwhat('?s| is)\s+(your\s+)?(score|mark|percentage)\b/i,
+  ];
+
+  for (const pattern of scorePatterns) {
+    if (typeof pattern === 'boolean' ? pattern : pattern.test(t)) return true;
+  }
+
+  // Percentage score with "out of"
+  if (/\b(out\s+of|from|of)\b/i.test(t) && /\b(%|score|mark|result)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
+ * Smart consent/agreement field detection
+ */
  * Smart consent/agreement field detection
  */
 function isLikelyConsentField(title) {
@@ -2627,6 +2738,8 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (isLikelyEthnicityField(title)) return { ...base, fieldType: 'ethnicity' };
   if (isLikelyAncestryField(title)) return { ...base, fieldType: 'ancestry' };
   if (isLikelyChildrenCountField(title)) return { ...base, fieldType: 'childrenCount' };
+  if (isLikelyGPAField(title)) return { ...base, fieldType: 'gpa' };
+  if (isLikelyScoreField(title)) return { ...base, fieldType: 'score' };
 
   return null;
 }
@@ -2699,6 +2812,123 @@ function createSmartSurveyConfigHtml(question, cfg, qIdx, binding) {
     `;
   }
 
+  if (binding.fieldType === 'gpa') {
+    const gpaConfig = normalizeGPAConfig(cfg.gpaConfig);
+    const enabledTypes = gpaConfig.enabledTypes || ['percent'];
+    const hasPercent = enabledTypes.includes('percent');
+    const has40 = enabledTypes.includes('4.0');
+    const has50 = enabledTypes.includes('5.0');
+    const hasLetter = enabledTypes.includes('letter');
+
+    return `
+      <div class="spammerz-name-detected-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(label)}</strong></span>
+      </div>
+
+      <!-- Scale Type Selection -->
+      <div class="spammerz-gpa-checkboxes">
+        <label class="spammerz-gpa-type-chip ${hasPercent ? 'active' : ''}">
+          <input type="checkbox" class="spammerz-gpa-type-check" data-qidx="${qIdx}" data-gpa-type="percent" ${hasPercent ? 'checked' : ''}>
+          <span>Percentage (1-100)</span>
+        </label>
+        <label class="spammerz-gpa-type-chip ${has40 ? 'active' : ''}">
+          <input type="checkbox" class="spammerz-gpa-type-check" data-qidx="${qIdx}" data-gpa-type="4.0" ${has40 ? 'checked' : ''}>
+          <span>4.0 Scale</span>
+        </label>
+        <label class="spammerz-gpa-type-chip ${has50 ? 'active' : ''}">
+          <input type="checkbox" class="spammerz-gpa-type-check" data-qidx="${qIdx}" data-gpa-type="5.0" ${has50 ? 'checked' : ''}>
+          <span>5.0 Scale</span>
+        </label>
+        <label class="spammerz-gpa-type-chip ${hasLetter ? 'active' : ''}">
+          <input type="checkbox" class="spammerz-gpa-type-check" data-qidx="${qIdx}" data-gpa-type="letter" ${hasLetter ? 'checked' : ''}>
+          <span>Letter Grade</span>
+        </label>
+      </div>
+
+      <!-- Percentage Range -->
+      ${hasPercent ? `
+      <div class="spammerz-gpa-scale-config" id="gpa-percent-config-${qIdx}">
+        <div class="spammerz-age-range-row">
+          <label><span>Min%</span><input type="number" class="spammerz-gpa-input" data-qidx="${qIdx}" data-gpa-type="percent" data-gpa-field="min" min="0" max="100" value="${gpaConfig.percentMin ?? 60}"></label>
+          <label><span>Max%</span><input type="number" class="spammerz-gpa-input" data-qidx="${qIdx}" data-gpa-type="percent" data-gpa-field="max" min="0" max="100" value="${gpaConfig.percentMax ?? 99}"></label>
+        </div>
+      </div>` : ''}
+
+      <!-- 4.0 Scale Range -->
+      ${has40 ? `
+      <div class="spammerz-gpa-scale-config" id="gpa-40-config-${qIdx}">
+        <div class="spammerz-scale-range-row">
+          <span class="spammerz-scale-range-label">Min:</span>
+          <input type="number" step="0.1" class="spammerz-gpa-input" data-qidx="${qIdx}" data-gpa-type="4.0" data-gpa-field="min" min="0" max="4.0" value="${gpaConfig.scale40Min ?? 2.5}">
+          <span class="spammerz-scale-range-label">Max:</span>
+          <input type="number" step="0.1" class="spammerz-gpa-input" data-qidx="${qIdx}" data-gpa-type="4.0" data-gpa-field="max" min="0" max="4.0" value="${gpaConfig.scale40Max ?? 4.0}">
+        </div>
+      </div>` : ''}
+
+      <!-- 5.0 Scale Range -->
+      ${has50 ? `
+      <div class="spammerz-gpa-scale-config" id="gpa-50-config-${qIdx}">
+        <div class="spammerz-scale-range-row">
+          <span class="spammerz-scale-range-label">Min:</span>
+          <input type="number" step="0.1" class="spammerz-gpa-input" data-qidx="${qIdx}" data-gpa-type="5.0" data-gpa-field="min" min="0" max="5.0" value="${gpaConfig.scale50Min ?? 3.0}">
+          <span class="spammerz-scale-range-label">Max:</span>
+          <input type="number" step="0.1" class="spammerz-gpa-input" data-qidx="${qIdx}" data-gpa-type="5.0" data-gpa-field="max" min="0" max="5.0" value="${gpaConfig.scale50Max ?? 5.0}">
+        </div>
+      </div>` : ''}
+
+      <!-- Letter Grade Selection -->
+      ${hasLetter ? `
+      <div class="spammerz-gpa-scale-config" id="gpa-letter-config-${qIdx}">
+        <div class="spammerz-gpa-letters">
+          ${['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'].map(letter => {
+            const letterWeights = gpaConfig.letterWeights || { 'A': true, 'B': true, 'C': true, 'D': true, 'F': true };
+            const isActive = ['A+', 'A-', 'B+', 'B-', 'C+', 'C-'].some(l => l === letter)
+              ? (letterWeights[letter] !== false) // Default true for variants
+              : (letterWeights[letter] !== false && letterWeights[letter[0]] !== false);
+            return `
+              <label class="spammerz-gpa-letter-chip ${letterWeights[letter] !== false && (letter.length === 1 ? letterWeights[letter] !== false : true) ? 'active' : ''}">
+                <input type="checkbox" class="spammerz-gpa-letter-check" data-qidx="${qIdx}" value="${letter}" ${letterWeights[letter] !== false ? 'checked' : ''}>
+                <span>${letter}</span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>` : ''}
+
+      <div class="spammerz-gpa-hint">Select scales and ranges. Random value will be generated from selected options.</div>
+    `;
+  }
+
+  if (binding.fieldType === 'score') {
+    const scoreConfig = normalizeScoreConfig(cfg.scoreConfig);
+    return `
+      <div class="spammerz-name-detected-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(label)}</strong></span>
+      </div>
+      <div class="spammerz-score-config">
+        <div class="spammerz-age-range-row">
+          <label><span>Min %</span><input type="number" class="spammerz-score-input" data-qidx="${qIdx}" data-score-field="min" min="0" max="100" value="${scoreConfig.min}"></label>
+          <label><span>Max %</span><input type="number" class="spammerz-score-input" data-qidx="${qIdx}" data-score-field="max" min="0" max="100" value="${scoreConfig.max}"></label>
+        </div>
+        <div class="spammerz-score-type-row">
+          <label class="spammerz-toggle">
+            <input type="checkbox" class="spammerz-score-decimal-checkbox" data-qidx="${qIdx}" ${scoreConfig.allowDecimal ? 'checked' : ''}>
+            <span class="spammerz-toggle-slider"></span>
+            <span>Allow decimals (e.g., 85.5)</span>
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     <div class="spammerz-name-detected-badge">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2725,6 +2955,8 @@ function getSmartSurveyFieldLabel(fieldType) {
     religion: 'Religion',
     householdSize: 'Household Size',
     childrenCount: 'No. of Children',
+    gpa: 'GPA / GWA / Final Grade',
+    score: 'Score / Percentage',
     consent: 'Consent / Eligibility',
     nationality: 'Nationality',
     ethnicity: 'Ethnicity',
@@ -2763,6 +2995,35 @@ function normalizeChildrenConfig(config = {}) {
   const max = Math.min(20, Math.max(0, Number.parseInt(config.max, 10) || 5));
   const allowNA = config.allowNA !== undefined ? Boolean(config.allowNA) : true;
   return min <= max ? { min, max, allowNA } : { min: max, max: min, allowNA };
+}
+
+function normalizeGPAConfig(config = {}) {
+  // Support both old format (for backward compatibility) and new format
+  const enabledTypes = Array.isArray(config.enabledTypes) && config.enabledTypes.length > 0
+    ? config.enabledTypes
+    : config.scale ? [config.scale] : ['percent']; // Default to percent
+
+  return {
+    enabledTypes,
+    // Percentage range
+    percentMin: Math.min(100, Math.max(0, config.percentMin ?? config.min ?? 60)),
+    percentMax: Math.min(100, Math.max(0, config.percentMax ?? config.max ?? 99)),
+    // 4.0 scale range
+    scale40Min: Math.min(4.0, Math.max(0, config.scale40Min ?? 2.5)),
+    scale40Max: Math.min(4.0, Math.max(0, config.scale40Max ?? 4.0)),
+    // 5.0 scale range
+    scale50Min: Math.min(5.0, Math.max(0, config.scale50Min ?? 3.0)),
+    scale50Max: Math.min(5.0, Math.max(0, config.scale50Max ?? 5.0)),
+    // Letter grades (default all enabled)
+    letterWeights: config.letterWeights || { 'A+': true, 'A': true, 'A-': true, 'B+': true, 'B': true, 'B-': true, 'C+': true, 'C': true, 'C-': true, 'D': true, 'F': true },
+  };
+}
+
+function normalizeScoreConfig(config = {}) {
+  const min = Math.min(100, Math.max(0, Number.parseInt(config.min, 10) || 0));
+  const max = Math.min(100, Math.max(0, Number.parseInt(config.max, 10) || 100));
+  const allowDecimal = config.allowDecimal !== undefined ? Boolean(config.allowDecimal) : true;
+  return min <= max ? { min, max, allowDecimal } : { min: max, max: min, allowDecimal };
 }
 
 function createRandomWeights(count) {
@@ -4307,13 +4568,60 @@ function generateSmartSurveyValue(fieldType, question, cfg, context) {
     }
     case 'childrenCount': {
       const childConfig = normalizeChildrenConfig(cfg.childrenConfig);
-      // Random number of children in the range
       const count = childConfig.min + Math.floor(Math.random() * (childConfig.max - childConfig.min + 1));
-      // If count is 0 and N/A is allowed, return "N/A"
       if (count === 0 && childConfig.allowNA) {
         return 'N/A';
       }
       return String(count);
+    }
+    case 'gpa': {
+      const gpaConfig = normalizeGPAConfig(cfg.gpaConfig);
+      const enabledTypes = gpaConfig.enabledTypes;
+
+      // If no scales enabled, default to percentage
+      if (!enabledTypes || enabledTypes.length === 0) {
+        return String(gpaConfig.percentMin + Math.floor(Math.random() * (gpaConfig.percentMax - gpaConfig.percentMin + 1)));
+      }
+
+      // Pick a random scale from enabled ones
+      const scaleType = enabledTypes[Math.floor(Math.random() * enabledTypes.length)];
+
+      switch (scaleType) {
+        case 'percent': {
+          const min = gpaConfig.percentMin;
+          const max = gpaConfig.percentMax;
+          return String(Math.round(min + Math.random() * (max - min)));
+        }
+        case '4.0': {
+          const min = gpaConfig.scale40Min;
+          const max = gpaConfig.scale40Max;
+          return (min + Math.random() * (max - min)).toFixed(2);
+        }
+        case '5.0': {
+          const min = gpaConfig.scale50Min;
+          const max = gpaConfig.scale50Max;
+          return (min + Math.random() * (max - min)).toFixed(2);
+        }
+        case 'letter': {
+          const letterWeights = gpaConfig.letterWeights;
+          // Get enabled letters
+          const enabledLetters = Object.entries(letterWeights)
+            .filter(([_, enabled]) => enabled)
+            .map(([letter]) => letter);
+          if (enabledLetters.length === 0) return 'B';
+          return enabledLetters[Math.floor(Math.random() * enabledLetters.length)];
+        }
+        default:
+          return String(gpaConfig.percentMin + Math.floor(Math.random() * (gpaConfig.percentMax - gpaConfig.percentMin + 1)));
+      }
+    }
+    case 'score': {
+      const scoreConfig = normalizeScoreConfig(cfg.scoreConfig);
+      const val = scoreConfig.min + Math.random() * (scoreConfig.max - scoreConfig.min);
+      if (scoreConfig.allowDecimal) {
+        return val.toFixed(1);
+      }
+      return String(Math.round(val));
     }
     case 'consent':
       return pickBestConsentOption(question);
@@ -5336,6 +5644,123 @@ function attachAllListeners(formData, s, updateState) {
       cfg.childrenConfig = normalizeChildrenConfig({
         ...(cfg.childrenConfig || {}),
         allowNA: e.target.checked,
+      });
+    };
+  });
+
+  // GPA type checkboxes (new format)
+  document.querySelectorAll('.spammerz-gpa-type-check').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const type = e.target.dataset.gpaType;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      cfg.gpaConfig = cfg.gpaConfig || {};
+      let enabledTypes = Array.isArray(cfg.gpaConfig.enabledTypes) ? [...cfg.gpaConfig.enabledTypes] : ['percent'];
+
+      if (e.target.checked) {
+        if (!enabledTypes.includes(type)) {
+          enabledTypes.push(type);
+        }
+      } else {
+        enabledTypes = enabledTypes.filter(t => t !== type);
+      }
+
+      // Ensure at least one is selected
+      if (enabledTypes.length === 0) {
+        enabledTypes = ['percent'];
+        // Re-check the checkbox
+        document.querySelector(`.spammerz-gpa-type-check[data-qidx="${qIdx}"][data-gpa-type="percent"]`).checked = true;
+      }
+
+      cfg.gpaConfig = normalizeGPAConfig({
+        ...cfg.gpaConfig,
+        enabledTypes,
+      });
+
+      // Re-render to show/hide the correct config sections
+      window.renderSpammerZUI(formData, window.spammerzState, updateState);
+    };
+  });
+
+  // GPA letter grade checkboxes
+  document.querySelectorAll('.spammerz-gpa-letter-check').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const letter = e.target.value;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      cfg.gpaConfig = cfg.gpaConfig || {};
+      const letterWeights = { ...(cfg.gpaConfig.letterWeights || {}) };
+      letterWeights[letter] = e.target.checked;
+
+      // If unchecking a base letter (A, B, C, etc.), also uncheck variants
+      if (letter.length === 1) {
+        Object.keys(letterWeights).forEach(key => {
+          if (key[0] === letter) letterWeights[key] = e.target.checked;
+        });
+      }
+
+      cfg.gpaConfig = normalizeGPAConfig({
+        ...cfg.gpaConfig,
+        letterWeights,
+      });
+    };
+  });
+
+  // GPA inputs (min/max for each scale type)
+  document.querySelectorAll('.spammerz-gpa-input').forEach(input => {
+    input.oninput = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const type = e.target.dataset.gpaType;
+      const field = e.target.dataset.gpaField;
+      const value = parseFloat(e.target.value) || 0;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+
+      cfg.gpaConfig = cfg.gpaConfig || {};
+
+      const update = { ...cfg.gpaConfig };
+
+      // Set the correct min/max for the type
+      if (type === 'percent') {
+        if (field === 'min') update.percentMin = value;
+        if (field === 'max') update.percentMax = value;
+      } else if (type === '4.0') {
+        if (field === 'min') update.scale40Min = value;
+        if (field === 'max') update.scale40Max = value;
+      } else if (type === '5.0') {
+        if (field === 'min') update.scale50Min = value;
+        if (field === 'max') update.scale50Max = value;
+      }
+
+      cfg.gpaConfig = normalizeGPAConfig(update);
+    };
+  });
+
+  document.querySelectorAll('.spammerz-score-input').forEach(input => {
+    input.oninput = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const field = e.target.dataset.scoreField;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.scoreConfig = normalizeScoreConfig({
+        ...(cfg.scoreConfig || {}),
+        [field]: Number.parseInt(e.target.value, 10) || 0,
+      });
+    };
+  });
+
+  document.querySelectorAll('.spammerz-score-decimal-checkbox').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.scoreConfig = normalizeScoreConfig({
+        ...(cfg.scoreConfig || {}),
+        allowDecimal: e.target.checked,
       });
     };
   });

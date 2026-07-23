@@ -2882,3 +2882,152 @@
 .spammerz-children-na-toggle .spammerz-toggle input {
   display: none;
 }
+
+/* === GPA Config === */
+.spammerz-gpa-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.spammerz-gpa-scale-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.spammerz-gpa-scale-row label {
+  font-size: 11px;
+  color: var(--spammerz-text-secondary);
+}
+.spammerz-gpa-scale-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  font-size: 12px;
+}
+
+/* === Score Config === */
+.spammerz-score-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.spammerz-score-type-row {
+  display: flex;
+  align-items: center;
+}
+.spammerz-score-type-row .spammerz-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.spammerz-score-type-row .spammerz-toggle input {
+  display: none;
+}
+
+/* === GPA Type Checkboxes === */
+.spammerz-gpa-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.spammerz-gpa-type-chip {
+  position: relative;
+  padding: 6px 12px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.spammerz-gpa-type-chip:hover {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-text);
+}
+.spammerz-gpa-type-chip.active {
+  border-color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.1);
+  color: var(--spammerz-accent);
+}
+.spammerz-gpa-type-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.spammerz-gpa-scale-config {
+  margin-top: 8px;
+}
+.spammerz-scale-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.spammerz-scale-range-label {
+  font-size: 11px;
+  color: var(--spammerz-text-secondary);
+}
+.spammerz-scale-range-row input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 4px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* === GPA Letter Grades === */
+.spammerz-gpa-letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.spammerz-gpa-letter-chip {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--spammerz-border);
+  border-radius: 6px;
+  background: var(--spammerz-surface);
+  color: var(--spammerz-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.spammerz-gpa-letter-chip:hover {
+  border-color: var(--spammerz-accent);
+  color: var(--spammerz-text);
+}
+.spammerz-gpa-letter-chip.active {
+  border-color: var(--spammerz-accent);
+  background: rgba(57, 255, 20, 0.15);
+  color: var(--spammerz-accent);
+}
+.spammerz-gpa-letter-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spammerz-gpa-hint {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--spammerz-text-muted);
+  font-style: italic;
+}
