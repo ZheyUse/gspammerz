@@ -2319,6 +2319,159 @@ function isLikelyHouseholdSizeField(title) {
 }
 
 /**
+ * Smart children / kids count field detection
+ * Comprehensive AI-like detection for all variations of "number of children" fields
+ */
+function isLikelyChildrenCountField(title) {
+  const t = title.toLowerCase();
+
+  // ============================================================
+  // FALSE POSITIVES - fields that mention "children" but aren't asking for count
+  // ============================================================
+
+  // Children AGES - those are age fields, not count
+  if (/\b(children|kids?|offspring)\s+(ages?|age)\b/i.test(t)) return false;
+  if (/\bage\s+(of|your)?\s*(children|kids?|youngest|oldest)\b/i.test(t)) return false;
+  if (/\bunder\s+(what\s+)?age\b/i.test(t) && /\b(children|kids?)\b/i.test(t)) return false;
+  if (/\b(children|kids?|child)\s+(is|are)\s+(how\s+old)\b/i.test(t)) return false;
+
+  // Children NAMES - those are text fields for names
+  if (/\b(children|kids?|child)\s+name/i.test(t)) return false;
+  if (/\bname\s+(of|in)?\s*(your\s+)?(children|kids?|offspring)\b/i.test(t)) return false;
+
+  // Children's educational info
+  if (/\b(children|kids?|child)\s+(school|grade|year|student)/i.test(t)) return false;
+  if (/\b(what\s+)?grade\b.*\b(children|kids?)\b/i.test(t)) return false;
+
+  // Children in household context (not asking for count, describing household)
+  if (/\bhousehold\s+with\s+(children|kids?)\b/i.test(t)) return false;
+  if (/\b(children|kids?)\s+in\s+(family|home|household)\b/i.test(t) && !/\bhow\s+many\b/i.test(t) && !/\bnumber\b/i.test(t)) return false;
+  if (/\bwith\s+(young\s+)?(children|kids?)\b/i.test(t) && !/\bnumber\b/i.test(t) && !/\bhow\s+many\b/i.test(t)) {
+    // "Do you live with children?" - this is about living situation, not count
+    if (/\byes\s+or\s+no\b/i.test(t)) return false;
+  }
+
+  // Child-related topics that are not asking for count
+  if (/\bchild\s+(labor|work|care|custody|support|marriage)/i.test(t)) return false;
+  if (/\bchild(ren)?\s+birth\b/i.test(t)) return false;
+  if (/\bpregnan(t|cy)\b/i.test(t) && /\b(children|kids?)\b/i.test(t)) return false;
+  if (/\bexpecting\b/i.test(t) && /\b(children|kids?)\b/i.test(t)) return false;
+
+  // Parenting questions about experiences
+  if (/\b(comment|feedback|thought|experience)\s+about\s+(your\s+)?(children|kids?)\b/i.test(t)) return false;
+  if (/\bhow\s+(do|are|have)\s+you\s+(parent| raising|handle)\b/i.test(t)) return false;
+
+  // Other/something about children that isn't count
+  if (/\bwho\b.*\bchildren\b/i.test(t) && !/\bnumber\b/i.test(t)) return false; // "Who takes care of the children?"
+
+  // More false positives
+  if (/\bchildren\'s\s+(rights?|health|education|safety|protection)\b/i.test(t)) return false;
+  if (/\bchildren\s+(are|is)\s+(the\s+(future|problem|joy)|gifted|challenged)\b/i.test(t)) return false;
+  if (/\b(child(ren)?|kid(s)?)\b.*\s+support\b/i.test(t) && !/\bmany\b.*\bchild/i.test(t)) return false;
+  if (/\byoung(er)?\s+(children|kids)\b/i.test(t)) return false;
+  if (/\bhaving\s+(a\s+)?(child|baby|kid)\b/i.test(t) && !/\bmany\b/i.test(t)) return false; // "Are you having a child?"
+  if (/\bchild\s+(benefit|allowance|tax)\b/i.test(t)) return false; // financial topics
+
+  // ============================================================
+  // TRUE POSITIVES - patterns that ask for number/count of children
+  // ============================================================
+
+  const patterns = [
+    // Direct number patterns
+    /\bnumber\s+of\s+(children|kids?|offspring)\b/i,
+    /\bhow\s+many\s+(children|kids?|offspring)\b/i,
+    /\bno\.?\s*(of\s+)?(children|kids?|offspring)\b/i,
+    /\b#\s*(of\s+)?(children|kids?)\b/i,
+
+    // Count-related terms
+    /\b(children|kids?|offspring)\s+(count|total)\b/i,
+    /\b(count|total)\s+(children|kids?)\b/i,
+
+    // "Do you have N children?" forms
+    /\bhave\s+(\w+\s+)?(children|kids?|offspring)\b/i,
+    /\bhas\s+(\w+\s+)?(children|kids?|offspring)\b/i,
+
+    // Possessive - "your children" + count context
+    /\byour\s+(number\s+of\s+)?(children|kids?|offspring)\b/i,
+    /\bnumber\s+of\s+(your\s+)?(children|kids?)\b/i,
+
+    // Question forms
+    /\bany\s+(children|kids?|offspring)\b/i,
+    /\bdo\s+you\s+(have|got)?\s*(any)?\s*(children|kids?)\b/i,
+    /\bdo\s+you\s+(have\s+)?(\w+\s+)?(children|kids?)(\?)?$/i,
+
+    // With parentheses/hints
+    /\b(children|kids?)\s*\(.*?(any|none|if\s+any|N\/A)\b/i,
+    /\b(children|kids?)\s*\([^)]*(?:any|if\s*any|none)\b/i,
+
+    // Quantity question patterns
+    /\bquantity\s+(of\s+)?(children|kids?)\b/i,
+    /\bhow\s+many?\s*(:|-)?\s*(children|kids?)\b/i,
+
+    // Filipino/Asian patterns
+    /\bilang\s+(anak|batis)\b/i, // "ilang anak"
+    /\bpangalan\s+ng\s+(anak)\b/i, // FALSE - that's names
+    /\bbilang\s+(ng\s+)?(anak|children|child)\b/i,
+
+    // Spanish and other language patterns
+    /\bnumero\s+de\s+(hijos|ninos)\b/i, // "numero de hijos/hijos"
+    /\bcuantos\s+(hijos|ninos)\b/i, // "cuantos hijos/ninos"
+
+    // English variations and misspellings
+    /\bchild\s+(count|number)\b/i,
+    /\bno\.?\s*(of\s+)?child\s*(rens?)?\b/i,
+
+    // Dependents (close to children)
+    /\bnumber\s+of\s+dependents?\b/i,
+    /\bhow\s+many\s+dependents?\b/i,
+
+    // With optional grammar variations
+    /\bhow\s+many\s+(boy|girl)s?\s+and\s+(boy|girl)s?\b/i,
+    /\bnumber\s+of\s+(boy|girl)s?\b/i,
+
+    // Sons and daughters (also children)
+    /\bhow\s+many\s+(sons?|daughters?)\b/i,
+    /\bnumber\s+of\s+(sons?|daughters?)\b/i,
+
+    // "Kids" combined with count indicator
+    /\bnumber\s+of\s+(kids)\b/i,
+    /\bhow\s+many\s+kids\b/i,
+
+    // Question ending (e.g., "Children?")
+    /^children\s*\?$/i,
+    /^kids\s*\?$/i,
+
+    // With time/context indicators
+    /\b(children|kids?)\s+under\s+18\b/i,
+    /\b(children|kids?)\s*(currently)?\s*(having|born)\b/i && /\bhow\s+many\b/i.test(t), // "How many children are you currently having?"
+
+    // Dependents in surveys
+    /\bnumber\s+of\s+(people|deps?)\s+in\s+(your\s+)?household\b/i, // household dependents
+    /\bnumber\s+(people|deps?)\s+(under|below)\s+18\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    if (pattern.test(t)) return true;
+  }
+
+  // ============================================================
+  // CONTEXT-AWARE DETECTION - title mentions children/kids
+  // but has question-asking structure (how, what, number, etc.)
+  // ============================================================
+
+  const hasCountIndicator = /\b(how\s+many|number|how\s+much|quantity|count|total|amount)\b/i.test(t);
+  const hasChildIndicator = /\b(children|kids|offspring|juvenile|young\s+(one|person))\b/i.test(t);
+
+  if (hasCountIndicator && hasChildIndicator) return true;
+
+  // Question word near child word
+  if (/\b(how|what)\b.*\b(children|kids?|offspring)\b/i.test(t)) return true;
+  if (/\b(children|kids?|offspring)\b.*\b(how|what)\b/i.test(t)) return true;
+
+  return false;
+}
+
+/**
  * Smart consent/agreement field detection
  */
 function isLikelyConsentField(title) {
@@ -2473,6 +2626,7 @@ function detectSmartSurveyQuestion(question, idx = 0) {
   if (isLikelyNationalityField(title)) return { ...base, fieldType: 'nationality' };
   if (isLikelyEthnicityField(title)) return { ...base, fieldType: 'ethnicity' };
   if (isLikelyAncestryField(title)) return { ...base, fieldType: 'ancestry' };
+  if (isLikelyChildrenCountField(title)) return { ...base, fieldType: 'childrenCount' };
 
   return null;
 }
@@ -2521,6 +2675,30 @@ function createSmartSurveyConfigHtml(question, cfg, qIdx, binding) {
     `;
   }
 
+  if (binding.fieldType === 'childrenCount') {
+    const childConfig = normalizeChildrenConfig(cfg.childrenConfig);
+    return `
+      <div class="spammerz-name-detected-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span class="spammerz-name-detected-text">Auto-fill: <strong>${escHtml(label)}</strong></span>
+      </div>
+      <div class="spammerz-age-range-row">
+        <label><span>From</span><input type="number" class="spammerz-children-input" data-qidx="${qIdx}" data-children-field="min" min="0" max="20" value="${childConfig.min}"></label>
+        <label><span>To</span><input type="number" class="spammerz-children-input" data-qidx="${qIdx}" data-children-field="max" min="0" max="20" value="${childConfig.max}"></label>
+      </div>
+      <div class="spammerz-children-na-toggle">
+        <label class="spammerz-toggle">
+          <input type="checkbox" class="spammerz-children-na-checkbox" data-qidx="${qIdx}" ${childConfig.allowNA ? 'checked' : ''}>
+          <span class="spammerz-toggle-slider"></span>
+          <span>Allow N/A (when 0)</span>
+        </label>
+      </div>
+    `;
+  }
+
   return `
     <div class="spammerz-name-detected-badge">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2546,6 +2724,7 @@ function getSmartSurveyFieldLabel(fieldType) {
     occupation: 'Occupation / Employment',
     religion: 'Religion',
     householdSize: 'Household Size',
+    childrenCount: 'No. of Children',
     consent: 'Consent / Eligibility',
     nationality: 'Nationality',
     ethnicity: 'Ethnicity',
@@ -2577,6 +2756,13 @@ function normalizeHouseholdConfig(config = {}) {
   const min = Math.min(30, Math.max(1, Number.parseInt(config.min, 10) || 1));
   const max = Math.min(30, Math.max(1, Number.parseInt(config.max, 10) || 8));
   return min <= max ? { min, max } : { min: max, max: min };
+}
+
+function normalizeChildrenConfig(config = {}) {
+  const min = Math.min(20, Math.max(0, Number.parseInt(config.min, 10) || 0));
+  const max = Math.min(20, Math.max(0, Number.parseInt(config.max, 10) || 5));
+  const allowNA = config.allowNA !== undefined ? Boolean(config.allowNA) : true;
+  return min <= max ? { min, max, allowNA } : { min: max, max: min, allowNA };
 }
 
 function createRandomWeights(count) {
@@ -4119,6 +4305,16 @@ function generateSmartSurveyValue(fieldType, question, cfg, context) {
       const range = normalizeHouseholdConfig(cfg.householdConfig);
       return String(range.min + Math.floor(Math.random() * (range.max - range.min + 1)));
     }
+    case 'childrenCount': {
+      const childConfig = normalizeChildrenConfig(cfg.childrenConfig);
+      // Random number of children in the range
+      const count = childConfig.min + Math.floor(Math.random() * (childConfig.max - childConfig.min + 1));
+      // If count is 0 and N/A is allowed, return "N/A"
+      if (count === 0 && childConfig.allowNA) {
+        return 'N/A';
+      }
+      return String(count);
+    }
     case 'consent':
       return pickBestConsentOption(question);
     case 'nationality':
@@ -5114,6 +5310,32 @@ function attachAllListeners(formData, s, updateState) {
       cfg.householdConfig = normalizeHouseholdConfig({
         ...(cfg.householdConfig || {}),
         [field]: Number.parseInt(e.target.value, 10),
+      });
+    };
+  });
+
+  document.querySelectorAll('.spammerz-children-input').forEach(input => {
+    input.oninput = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const field = e.target.dataset.childrenField;
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.childrenConfig = normalizeChildrenConfig({
+        ...(cfg.childrenConfig || {}),
+        allowNA: cfg.childrenConfig?.allowNA ?? true,
+        [field]: Number.parseInt(e.target.value, 10),
+      });
+    };
+  });
+
+  document.querySelectorAll('.spammerz-children-na-checkbox').forEach(checkbox => {
+    checkbox.onchange = (e) => {
+      const qIdx = Number.parseInt(e.target.dataset.qidx, 10);
+      const cfg = window.spammerzState.answers[qIdx];
+      if (!cfg) return;
+      cfg.childrenConfig = normalizeChildrenConfig({
+        ...(cfg.childrenConfig || {}),
+        allowNA: e.target.checked,
       });
     };
   });
@@ -7084,3 +7306,167 @@ function resolveDelay(baseMs, randomize) {
   const jitter = baseMs * 0.5;
   return baseMs + (Math.random() * jitter * 2 - jitter);
 }
+
+// ================================================================
+// Google Forms SPA Navigation Observer
+// Detects when the form changes (SPA navigation) and re-runs checks
+// ================================================================
+
+let spammerzNavObserver = null;
+let spammerzLastFormUrl = '';
+
+/**
+ * Clears cached email collection check so it re-runs on new form
+ */
+function clearEmailCollectionCache() {
+  window.spammerz_emailCollectionChecked = false;
+  window.spammerz_emailCollectionEnabled = undefined;
+}
+
+/**
+ * Checks if the form URL has changed (SPA navigation detection)
+ */
+function hasFormUrlChanged() {
+  const currentUrl = window.location.href.split('?')[0]; // Remove query params for comparison
+  if (currentUrl !== spammerzLastFormUrl) {
+    spammerzLastFormUrl = currentUrl;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Watches for Google Forms SPA navigation and re-checks email collection
+ */
+function setupNavObserver() {
+  // Don't set up multiple observers
+  if (spammerzNavObserver) return;
+
+  // Track initial URL
+  spammerzLastFormUrl = window.location.href.split('?')[0];
+
+  // Create a MutationObserver to watch for form content changes
+  spammerzNavObserver = new MutationObserver((mutations) => {
+    // Check if URL changed (new form loaded)
+    if (hasFormUrlChanged()) {
+      console.log('[SpammerZ] SPA Navigation detected - re-checking form...');
+      clearEmailCollectionCache();
+      reinitializeForNewForm();
+      return;
+    }
+
+    // Check if the live form appeared or changed
+    const liveForm = document.querySelector('form[action*="formResponse"]');
+    if (liveForm) {
+      const formSignature = liveForm.innerHTML.substring(0, 500);
+      if (window.spammerzLastFormSignature !== formSignature) {
+        window.spammerzLastFormSignature = formSignature;
+        // Form content changed - might need to recheck some things
+        // But don't recheck email collection here as it's expensive
+      }
+    }
+  });
+
+  // Watch the entire document for changes
+  spammerzNavObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['action', 'class', 'data-item-id'],
+  });
+
+  // Also monitor URL changes via popstate (back/forward navigation)
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function(...args) {
+    const result = originalPushState.apply(this, args);
+    setTimeout(() => {
+      console.log('[SpammerZ] pushState navigation detected');
+      clearEmailCollectionCache();
+      reinitializeForNewForm();
+    }, 500);
+    return result;
+  };
+
+  history.replaceState = function(...args) {
+    const result = originalReplaceState.apply(this, args);
+    setTimeout(() => {
+      console.log('[SpammerZ] replaceState navigation detected');
+      clearEmailCollectionCache();
+    }, 500);
+    return result;
+  };
+
+  // Listen for popstate (back/forward buttons)
+  window.addEventListener('popstate', () => {
+    setTimeout(() => {
+      console.log('[SpammerZ] popstate navigation detected');
+      clearEmailCollectionCache();
+      reinitializeForNewForm();
+    }, 500);
+  });
+
+  console.log('[SpammerZ] Navigation observer initialized');
+}
+
+/**
+ * Reinitialize the UI for a newly navigated form
+ */
+function reinitializeForNewForm() {
+  // Small delay to let the form fully render
+  setTimeout(() => {
+    // Check email collection on the new form
+    const emailCollectionEnabled = detectEmailCollectionEnabled();
+
+    if (emailCollectionEnabled) {
+      console.log('[SpammerZ] Email collection detected on new form');
+      showEmailCollectionModal();
+    } else {
+      // Close the modal if it was open from a previous form
+      const existingModal = document.querySelector('.spammerz-email-collection-modal');
+      if (existingModal) {
+        existingModal.remove();
+      }
+      const existingBlockingModal = document.querySelector('.spammerz-update-modal-overlay');
+      // Don't close the update modal, only email collection modal
+    }
+  }, 800);
+}
+
+// Auto-start the navigation observer when panel.js loads
+// We'll use a small delay to ensure the DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupNavObserver);
+} else {
+  // DOM already loaded, set up observer
+  setupNavObserver();
+}
+
+// Also watch for hash changes (Google Forms sometimes uses hash routing)
+window.addEventListener('hashchange', () => {
+  setTimeout(() => {
+    if (hasFormUrlChanged()) {
+      console.log('[SpammerZ] Hash change navigation detected');
+      clearEmailCollectionCache();
+      reinitializeForNewForm();
+    }
+  }, 300);
+});
+
+// Watch for visibility changes (user switches tabs and back)
+// This catches cases where Google Forms updates while tab is hidden
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Small delay to let the form settle after tab becomes visible
+    setTimeout(() => {
+      // Recheck if the form URL actually changed
+      const currentUrl = window.location.href.split('?')[0];
+      if (currentUrl !== spammerzLastFormUrl) {
+        console.log('[SpammerZ] Visibility change revealed new form');
+        clearEmailCollectionCache();
+        reinitializeForNewForm();
+      }
+    }, 500);
+  }
+});

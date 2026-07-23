@@ -2866,3 +2866,19 @@
   min-width: 120px;
   white-space: nowrap;
 }
+
+/* === Children Count Config === */
+.spammerz-children-na-toggle {
+  margin-top: 10px;
+}
+.spammerz-children-na-toggle .spammerz-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.spammerz-children-na-toggle .spammerz-toggle input {
+  display: none;
+}
