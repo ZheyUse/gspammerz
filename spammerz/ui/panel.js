@@ -1965,8 +1965,10 @@ function isStandaloneField(title, keyword) {
   const standalonePatterns = [
     new RegExp('^' + keyword + '$', 'i'),
     new RegExp('^your\s+' + keyword + '$', 'i'),
-    new RegExp('^' + keyword + '\s*\?$', 'i'),
-    new RegExp('^what\s+is\s+your\s+' + keyword + '$', 'i'),
+    new RegExp('^' + keyword + '\\s*\\?$', 'i'),
+    new RegExp('^what\\s+is\\s+your\\s+' + keyword + '$', 'i'),
+    // Handle prefixed variations like "Current Course", "Present Course", "My Course"
+    new RegExp('^(current|present|my|the)\\s+' + keyword + '$', 'i'),
   ];
   return standalonePatterns.some(p => p.test(t));
 }
@@ -2214,8 +2216,12 @@ function isLikelyCourseField(title) {
     if (pattern.test(t)) return false;
   }
 
-  // Strong course patterns
+  // Strong course patterns with prefixes
   if (isStandaloneField(t, "course") || isStandaloneField(t, "program") || isStandaloneField(t, "strand")) return true;
+
+  // Handle "Current Course", "Present Course", "My Course", "The Course"
+  if (/^(current|present|my|the)\s+course$/i.test(t)) return true;
+
   if (/\b(course|program|degree|strand|track)\b/i.test(t)) {
     if (/\byour\b|\benrolled\b|\bmajor\b|\bminor\b|\bstudying\b|\bwhich\b|\bwhat\b|\bwhere\b/i.test(t)) return true;
     if (/\bcourse\s+(of\s+)?(stud|major|program)\b/i.test(t)) return true;
